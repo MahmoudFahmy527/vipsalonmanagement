@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+  <style>
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      text-align: center;
+      padding: 1rem;
+    }
+    .stat-card .stat-number {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .stat-card .stat-label {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+    .booking-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 1.25rem;
+      margin-bottom: 0.75rem;
+      border-right: 4px solid var(--gold);
+    }
+    .booking-card.status-pending { border-right-color: var(--warning); }
+    .booking-card.status-accepted { border-right-color: var(--success); }
+    .booking-card.status-rejected { border-right-color: var(--danger); }
+    .booking-card.status-reserved { border-right-color: #3498db; }
+    .booking-info { flex: 1; min-width: 200px; }
+    .booking-info h4 {
+      margin: 0 0 0.25rem;
+      color: var(--text-primary);
+      font-size: 1.05rem;
+    }
+    .booking-info .booking-phone {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      direction: ltr;
+      text-align: right;
+    }
+    .booking-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .booking-meta .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+    .booking-meta .meta-item span.value {
+      color: var(--text-primary);
+    }
+    .booking-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .note-text {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-style: italic;
+      margin-top: 0.25rem;
+    }
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .action-bar h2 {
+      margin: 0;
+      font-size: 1.3rem;
+      color: var(--text-primary);
+    }
+    @media (max-width: 768px) {
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .booking-card { flex-direction: column; align-items: flex-start; }
+      .booking-actions { width: 100%; }
+    }
+    @media (max-width: 480px) {
+      .stats-bar { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container">
+      <!-- Date Navigator -->
+      <div class="date-picker mt-2 mb-2" id="date-picker" style="overflow-x:auto;white-space:nowrap;padding:0.5rem 0;"></div>
+
+      <!-- Stats Bar -->
+      <div class="stats-bar" id="stats-bar">
+        <div class="card stat-card">
+          <div class="stat-number" id="stat-total">0</div>
+          <div class="stat-label">إجمالي الحجوزات</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-number" id="stat-pending" style="color:var(--warning)">0</div>
+          <div class="stat-label">قيد الانتظار</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-number" id="stat-accepted" style="color:var(--success)">0</div>
+          <div class="stat-label">مقبول</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-number" id="stat-reserved" style="color:#3498db">0</div>
+          <div class="stat-label">محجوز</div>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <h2 id="bookings-title">حجوزات اليوم</h2>
+        <button class="btn btn-gold" id="reserve-btn">+ حجز يدوي</button>
+      </div>
+
+      <!-- Bookings List -->
+      <div id="bookings-list">
+        <div class="flex-center mt-3">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reserve Slot Modal -->
+  <div class="modal-overlay hidden" id="reserve-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>حجز يدوي</h3>
+        <button class="btn btn-icon" id="reserve-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">التاريخ</label>
+          <input type="date" class="form-input" id="reserve-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الوقت</label>
+          <select class="form-select" id="reserve-time"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">المدة (بالدقائق)</label>
+          <input type="number" class="form-input" id="reserve-duration" value="60" min="15" step="15">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ملاحظة (اختياري)</label>
+          <textarea class="form-textarea" id="reserve-note" rows="2" placeholder="أضف ملاحظة..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="reserve-cancel">إلغاء</button>
+        <button class="btn btn-gold" id="reserve-submit">حجز</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Time Modal -->
+  <div class="modal-overlay hidden" id="edit-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>تعديل الموعد</h3>
+        <button class="btn btn-icon" id="edit-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-booking-id">
+        <div class="form-group">
+          <label class="form-label">التاريخ</label>
+          <input type="date" class="form-input" id="edit-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الوقت</label>
+          <select class="form-select" id="edit-time"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">المدة (بالدقائق)</label>
+          <input type="number" class="form-input" id="edit-duration" value="60" min="15" step="15">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="edit-cancel">إلغاء</button>
+        <button class="btn btn-gold" id="edit-submit">حفظ التعديل</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div class="modal-overlay hidden" id="confirm-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>تأكيد الحذف</h3>
+        <button class="btn btn-icon" id="confirm-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="text-align:center;color:var(--text-secondary);font-size:1.05rem;" id="confirm-message">هل أنت متأكد من حذف هذا الحجز؟</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="confirm-cancel">إلغاء</button>
+        <button class="btn btn-danger" id="confirm-yes">حذف</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

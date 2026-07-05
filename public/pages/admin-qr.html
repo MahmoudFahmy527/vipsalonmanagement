@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>رمز QR — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+  <style>
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1.5rem;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 2px solid var(--gold);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      max-width: 400px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .qr-title {
+      color: var(--gold);
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+    .qr-subtitle {
+      color: var(--text-secondary);
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+    #qrcode {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+    }
+    #qrcode img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container mt-2">
+      <h2 style="color:var(--text-primary);margin-bottom:1.5rem;">رمز QR للصالون</h2>
+      
+      <div class="qr-container">
+        <h3 class="qr-title">الشرقاوي صالون</h3>
+        <p class="qr-subtitle">امسح الرمز لزيارة موقعنا وحجز موعدك</p>
+        
+        <div id="qrcode"></div>
+        
+        <button id="download-btn" class="btn btn-gold">
+          تنزيل كصورة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="/js/admin-qr.js"></script>
+</body>
+</html>

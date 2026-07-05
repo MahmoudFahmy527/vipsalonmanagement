@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الإعدادات — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container mt-2" style="max-width:760px;">
+      <h2 style="color:var(--text-primary);margin-bottom:1.5rem;">الإعدادات</h2>
+
+      <!-- Branding shortcut -->
+      <div class="card mb-3 flex-between" style="gap:1rem;flex-wrap:wrap;">
+        <div>
+          <h3 style="margin:0 0 0.25rem;">🎨 هوية الصالون</h3>
+          <p class="text-muted" style="margin:0;">الاسم، اللون، الشعار، أرقام التواصل وروابط السوشيال ميديا</p>
+        </div>
+        <a href="/setup" class="btn btn-gold">تعديل الهوية</a>
+      </div>
+
+      <!-- Home description -->
+      <div class="card mb-3">
+        <h3 style="margin-top:0;">وصف الصفحة الرئيسية</h3>
+        <form id="settings-form">
+          <div class="form-group">
+            <textarea class="form-textarea" id="home_description" rows="4" placeholder="أدخل الوصف الذي سيظهر في الصفحة الرئيسية..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-gold">حفظ التغييرات</button>
+        </form>
+      </div>
+
+      <!-- Change password -->
+      <div class="card">
+        <h3 style="margin-top:0;">🔐 تغيير كلمة المرور</h3>
+        <form id="password-form">
+          <div class="form-group">
+            <label class="form-label">كلمة المرور الحالية</label>
+            <input class="form-input" id="current_password" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">اسم المستخدم الجديد (اختياري)</label>
+            <input class="form-input" id="new_username" dir="ltr" autocomplete="username" placeholder="اتركه فارغاً لعدم التغيير">
+          </div>
+          <div class="form-group">
+            <label class="form-label">كلمة المرور الجديدة</label>
+            <input class="form-input" id="new_password" type="password" autocomplete="new-password" placeholder="6 أحرف على الأقل" required>
+          </div>
+          <button type="submit" class="btn btn-outline">تحديث بيانات الدخول</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/js/admin-settings.js"></script>
+</body>
+</html>

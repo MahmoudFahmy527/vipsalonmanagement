@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل الدخول — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+  <style>
+    .login-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+      padding: 1rem;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+    }
+    .login-logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .login-logo-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold), #e0c068);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 2rem;
+    }
+    .login-logo h1 {
+      font-family: 'Playfair Display', serif;
+      color: var(--gold);
+      font-size: 1.8rem;
+      margin: 0 0 0.25rem;
+    }
+    .login-logo p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .login-error {
+      background: rgba(231, 76, 60, 0.1);
+      border: 1px solid rgba(231, 76, 60, 0.3);
+      color: var(--danger);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      display: none;
+      text-align: center;
+    }
+    .login-error.visible {
+      display: block;
+    }
+    .login-btn {
+      width: 100%;
+      padding: 0.85rem;
+      font-size: 1.05rem;
+      margin-top: 0.5rem;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    .shake {
+      animation: shake 0.5s ease-in-out;
+    }
+    .login-footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="login-card card">
+      <div class="login-logo">
+        <div class="login-logo-icon">✂</div>
+        <h1>الشرقاوي صالون</h1>
+        <p>لوحة التحكم</p>
+      </div>
+
+      <div id="login-error" class="login-error"></div>
+
+      <form id="login-form" autocomplete="on">
+        <div class="form-group">
+          <label class="form-label" for="username">اسم المستخدم</label>
+          <input class="form-input" type="text" id="username" name="username" placeholder="أدخل اسم المستخدم" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">كلمة المرور</label>
+          <input class="form-input" type="password" id="password" name="password" placeholder="أدخل كلمة المرور" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn-gold login-btn" id="login-btn">
+          تسجيل الدخول
+        </button>
+      </form>
+
+      <div class="login-footer">
+        &copy; الشرقاوي صالون — جميع الحقوق محفوظة
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const errorDiv = document.getElementById('login-error');
+    const loginBtn = document.getElementById('login-btn');
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.classList.add('visible');
+      const card = document.querySelector('.login-card');
+      card.classList.remove('shake');
+      void card.offsetWidth;
+      card.classList.add('shake');
+    }
+
+    function hideError() {
+      errorDiv.classList.remove('visible');
+    }
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      hideError();
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!username || !password) {
+        showError('يرجى إدخال اسم المستخدم وكلمة المرور');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'جاري التسجيل...';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          window.location.href = '/admin';
+        } else {
+          showError(data.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        }
+      } catch (err) {
+        showError('حدث خطأ في الاتصال بالخادم');
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'تسجيل الدخول';
+      }
+    });
+  </script>
+</body>
+</html>

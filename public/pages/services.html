@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>خدماتنا — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+  <script src="/js/brand.js"></script>
+</head>
+<body>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar" id="navbar">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-logo">
+        <span class="logo-icon">✂️</span>
+        الشرقاوي صالون
+      </a>
+      <div class="navbar-links" id="navLinks">
+        <a href="/">الرئيسية</a>
+        <a href="/services" class="active">خدماتنا</a>
+        <a href="/gallery">معرض الأعمال</a>
+        <a href="/book">احجز الآن</a>
+        <a href="/login" class="login-link">تسجيل الدخول</a>
+      </div>
+      <div class="navbar-toggle" onclick="toggleNav()">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Content -->
+  <div class="page-container" style="max-width:960px;">
+
+    <a href="/" class="back-link">→ العودة للرئيسية</a>
+
+    <div class="page-header">
+      <h1>خدماتنا</h1>
+      <p>نقدم لك أفضل خدمات العناية بالمظهر بأعلى جودة</p>
+    </div>
+
+    <div id="servicesContent">
+      <div class="flex-center">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 <span class="footer-brand">الشرقاوي صالون</span> — جميع الحقوق محفوظة</p>
+  </footer>
+
+  <script src="/js/services.js"></script>
+  <script>
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40);
+    });
+    function toggleNav() {
+      document.getElementById('navLinks').classList.toggle('open');
+    }
+  </script>
+
+</body>
+</html>

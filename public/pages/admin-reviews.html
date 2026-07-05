@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>التقييمات — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+  <style>
+    .review-card {
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      border-right: 4px solid var(--gold);
+    }
+    .review-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .review-author {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .review-rating {
+      color: var(--gold);
+    }
+    .review-text {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+    }
+    .review-date {
+      font-size: 0.8rem;
+      color: var(--text-tertiary);
+    }
+    .review-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container mt-2">
+      <h2 style="color:var(--text-primary);margin-bottom:1.5rem;">إدارة التقييمات</h2>
+      
+      <div id="reviews-list">
+        <div class="flex-center mt-3">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/js/admin-reviews.js"></script>
+</body>
+</html>

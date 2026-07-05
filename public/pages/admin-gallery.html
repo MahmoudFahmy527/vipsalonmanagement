@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المعرض — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+  <style>
+    .upload-zone {
+      border: 2px dashed var(--gold);
+      border-radius: 12px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(201, 168, 76, 0.03);
+      margin-bottom: 2rem;
+    }
+    .upload-zone:hover,
+    .upload-zone.dragover {
+      background: rgba(201, 168, 76, 0.08);
+      border-color: #e0c068;
+    }
+    .upload-zone-icon {
+      font-size: 3rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+    .upload-zone-text {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+    .upload-zone-text strong {
+      color: var(--gold);
+    }
+    .upload-preview {
+      display: none;
+      margin-bottom: 2rem;
+    }
+    .upload-preview.visible {
+      display: block;
+    }
+    .preview-card {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .preview-thumb {
+      width: 160px;
+      height: 120px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: var(--bg-tertiary);
+    }
+    .preview-fields {
+      flex: 1;
+      min-width: 200px;
+    }
+    .upload-progress {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-tertiary);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 0.75rem;
+      display: none;
+    }
+    .upload-progress.visible { display: block; }
+    .upload-progress-bar {
+      height: 100%;
+      background: var(--gold);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+    .gallery-item {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    .gallery-thumb {
+      width: 100%;
+      height: 220px;
+      object-fit: cover;
+      display: block;
+      background: var(--bg-tertiary);
+    }
+    .gallery-item-body {
+      padding: 1rem;
+    }
+    .gallery-item-desc {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin: 0 0 0.75rem;
+      min-height: 1.2em;
+    }
+    .gallery-item-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .gallery-item .media-type-badge {
+      position: absolute;
+      top: 0.75rem;
+      left: 0.75rem;
+      background: rgba(0,0,0,0.7);
+      color: var(--text-primary);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+    @media (max-width: 600px) {
+      .gallery-grid { grid-template-columns: 1fr; }
+      .preview-card { flex-direction: column; }
+      .preview-thumb { width: 100%; height: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container mt-2">
+      <h2 style="color:var(--text-primary);margin-bottom:1.5rem;">إدارة المعرض</h2>
+
+      <!-- Upload Zone -->
+      <div class="upload-zone" id="upload-zone">
+        <span class="upload-zone-icon">📁</span>
+        <p class="upload-zone-text">اسحب الملفات هنا أو <strong>اضغط للرفع</strong></p>
+        <p style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.25rem;">صور أو فيديوهات</p>
+        <input type="file" id="file-input" accept="image/*,video/*" style="display:none;">
+      </div>
+
+      <!-- Upload Preview -->
+      <div class="upload-preview card" id="upload-preview">
+        <div class="preview-card">
+          <img id="preview-thumb" class="preview-thumb" src="" alt="معاينة">
+          <div class="preview-fields">
+            <div class="form-group">
+              <label class="form-label">الوصف</label>
+              <input type="text" class="form-input" id="upload-desc" placeholder="أضف وصف للصورة...">
+            </div>
+            <div class="flex" style="gap:0.5rem;">
+              <button class="btn btn-gold" id="upload-submit">رفع</button>
+              <button class="btn btn-outline" id="upload-cancel-btn">إلغاء</button>
+            </div>
+            <div class="upload-progress" id="upload-progress">
+              <div class="upload-progress-bar" id="upload-progress-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gallery Grid -->
+      <div id="gallery-grid" class="gallery-grid">
+        <div class="flex-center mt-3" style="grid-column:1/-1;">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Description Modal -->
+  <div class="modal-overlay hidden" id="edit-desc-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>تعديل الوصف</h3>
+        <button class="btn btn-icon" id="edit-desc-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-desc-id">
+        <div class="form-group">
+          <label class="form-label">الوصف</label>
+          <textarea class="form-textarea" id="edit-desc-input" rows="3" placeholder="أضف وصف..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="edit-desc-cancel">إلغاء</button>
+        <button class="btn btn-gold" id="edit-desc-submit">حفظ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div class="modal-overlay hidden" id="confirm-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>تأكيد الحذف</h3>
+        <button class="btn btn-icon" id="confirm-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="text-align:center;color:var(--text-secondary);font-size:1.05rem;">هل أنت متأكد من حذف هذا العنصر؟</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="confirm-cancel">إلغاء</button>
+        <button class="btn btn-danger" id="confirm-yes">حذف</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/admin-gallery.js"></script>
+</body>
+</html>

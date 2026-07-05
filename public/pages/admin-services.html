@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الخدمات — الشرقاوي صالون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+  <style>
+    .services-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .services-header h2 {
+      margin: 0;
+      color: var(--text-primary);
+    }
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 0.4rem 1rem;
+      border-radius: 20px;
+      border: 1px solid var(--bg-tertiary);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: 'Cairo', sans-serif;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+    .filter-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .filter-btn.active {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: var(--bg-primary);
+      font-weight: 600;
+    }
+    .service-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+      transition: opacity 0.2s ease;
+    }
+    .service-card.hidden-service {
+      opacity: 0.5;
+    }
+    .service-info {
+      flex: 1;
+      min-width: 200px;
+    }
+    .service-info h4 {
+      margin: 0 0 0.15rem;
+      color: var(--text-primary);
+      font-size: 1.05rem;
+    }
+    .service-info .service-name-en {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-style: italic;
+      margin-bottom: 0.25rem;
+    }
+    .service-info .service-desc {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin: 0;
+    }
+    .service-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .service-price {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+    .service-duration {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+    .category-badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(201, 168, 76, 0.15);
+      color: var(--gold);
+    }
+    .service-actions {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .order-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .order-btn {
+      background: transparent;
+      border: 1px solid var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      width: 28px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      transition: all 0.2s ease;
+    }
+    .order-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .visibility-btn {
+      font-size: 1.1rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.25rem;
+      transition: opacity 0.2s;
+    }
+    @media (max-width: 768px) {
+      .service-card { flex-direction: column; align-items: flex-start; }
+      .service-actions { width: 100%; justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الخدمات</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container mt-2">
+      <!-- Header -->
+      <div class="services-header">
+        <h2>إدارة الخدمات</h2>
+        <button class="btn btn-gold" id="add-service-btn">+ إضافة خدمة</button>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="filter-bar" id="filter-bar">
+        <button class="filter-btn active" data-category="all">الكل</button>
+        <button class="filter-btn" data-category="haircut">قص الشعر</button>
+        <button class="filter-btn" data-category="beard">اللحية</button>
+        <button class="filter-btn" data-category="skincare">العناية بالبشرة</button>
+        <button class="filter-btn" data-category="package">الباقات</button>
+        <button class="filter-btn" data-category="other">أخرى</button>
+      </div>
+
+      <!-- Services List -->
+      <div id="services-list">
+        <div class="flex-center mt-3">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Service Modal -->
+  <div class="modal-overlay hidden" id="service-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="service-modal-title">إضافة خدمة جديدة</h3>
+        <button class="btn btn-icon" id="service-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="service-edit-id">
+        <div class="form-group">
+          <label class="form-label">الاسم بالعربية *</label>
+          <input type="text" class="form-input" id="service-name" placeholder="مثال: قص شعر كلاسيك" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">الاسم بالإنجليزية</label>
+          <input type="text" class="form-input" id="service-name-en" placeholder="e.g. Classic Haircut" dir="ltr" style="text-align:left;">
+        </div>
+        <div class="grid-2" style="gap:1rem;">
+          <div class="form-group">
+            <label class="form-label">السعر (ج.م) *</label>
+            <input type="number" class="form-input" id="service-price" placeholder="0" min="0" step="5" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">المدة (دقيقة)</label>
+            <input type="number" class="form-input" id="service-duration" value="60" min="15" step="15">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">التصنيف</label>
+          <select class="form-select" id="service-category">
+            <option value="haircut">قص الشعر</option>
+            <option value="beard">اللحية</option>
+            <option value="skincare">العناية بالبشرة</option>
+            <option value="package">الباقات</option>
+            <option value="other">أخرى</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">الوصف</label>
+          <textarea class="form-textarea" id="service-description" rows="3" placeholder="وصف الخدمة..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="service-cancel">إلغاء</button>
+        <button class="btn btn-gold" id="service-submit">حفظ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div class="modal-overlay hidden" id="confirm-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>تأكيد الحذف</h3>
+        <button class="btn btn-icon" id="confirm-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="text-align:center;color:var(--text-secondary);font-size:1.05rem;">هل أنت متأكد من حذف هذه الخدمة؟</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="confirm-cancel">إلغاء</button>
+        <button class="btn btn-danger" id="confirm-yes">حذف</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/admin-services.js"></script>
+</body>
+</html>
