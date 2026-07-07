@@ -115,16 +115,41 @@ function generateSlotTimes() {
   return generateSlotTimesFor(config.SLOT_START_HOUR, config.SLOT_END_HOUR);
 }
 
+// Salon-wide schedule, editable from settings (falls back to config/env).
+function salonCfg() {
+  const num = (v, fallback) => {
+    const n = Number(v);
+    return (v !== '' && v != null && Number.isFinite(n)) ? n : fallback;
+  };
+  const list = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return {
+    open: num(db.getSetting('open_hour'), config.SLOT_START_HOUR),
+    close: num(db.getSetting('close_hour'), config.SLOT_END_HOUR),
+    closedDays: list(db.getSetting('closed_days')),
+    closedDates: list(db.getSetting('closed_dates')),
+  };
+}
+
+// Is the salon open on this date (weekday not closed, not a holiday)?
+function salonOpenOn(date, cfg) {
+  if (cfg.closedDates.includes(date)) return false;
+  if (cfg.closedDays.length) {
+    const dow = new Date(date + 'T00:00:00').getDay();
+    if (cfg.closedDays.includes(String(dow))) return false;
+  }
+  return true;
+}
+
 // A barber's own window (falls back to the salon window).
-function barberWindow(barber) {
-  const start = (barber && barber.work_start != null) ? barber.work_start : config.SLOT_START_HOUR;
-  const end = (barber && barber.work_end != null) ? barber.work_end : config.SLOT_END_HOUR;
+function barberWindow(barber, cfg) {
+  const start = (barber && barber.work_start != null) ? barber.work_start : cfg.open;
+  const end = (barber && barber.work_end != null) ? barber.work_end : cfg.close;
   return { start, end };
 }
 
 // Does a booking overlap the [slotStart, slotStart+DURATION) window and hold it?
-function bookingBlocks(b, slotStart) {
-  const bStart = slotToMinutes(b.time_slot);
+function bookingBlocks(b, slotStart, openHour) {
+  const bStart = slotToMinutes(b.time_slot, openHour);
   const bEnd = bStart + (b.duration || 60);
   const slotEnd = slotStart + config.SLOT_DURATION;
   return slotStart < bEnd && bStart < slotEnd && (b.status === 'accepted' || b.status === 'reserved');
@@ -132,13 +157,13 @@ function bookingBlocks(b, slotStart) {
 
 /**
  * Convert a time-slot string "HH:MM" to a comparable minute-of-day value,
- * adjusted so that hours before SLOT_START_HOUR (i.e. after midnight) are
- * treated as 24+hour to keep ordering linear.
+ * adjusted so that hours before the opening hour (i.e. after midnight for a
+ * salon that crosses midnight) are treated as 24+hour to keep ordering linear.
  */
-function slotToMinutes(timeStr) {
+function slotToMinutes(timeStr, openHour = config.SLOT_START_HOUR) {
   const [h, m] = timeStr.split(':').map(Number);
   let minutes = h * 60 + m;
-  if (h < config.SLOT_START_HOUR) {
+  if (h < openHour) {
     minutes += 24 * 60; // push post-midnight slots past 23:xx
   }
   return minutes;
@@ -210,6 +235,11 @@ app.get('/admin/barbers', (req, res) => {
   res.sendFile(path.join(pagesDir, 'admin-barbers.html'));
 });
 
+app.get('/admin/stats', (req, res) => {
+  if (!req.session || !req.session.isAdmin) return res.redirect('/login');
+  res.sendFile(path.join(pagesDir, 'admin-stats.html'));
+});
+
 app.get('/admin/reviews', (req, res) => {
   if (!req.session || !req.session.isAdmin) return res.redirect('/login');
   res.sendFile(path.join(pagesDir, 'admin-reviews.html'));
@@ -262,13 +292,18 @@ app.get('/api/slots/:date', (req, res) => {
     const { date } = req.params; // YYYY-MM-DD
     const barberId = req.query.barber;
 
+    const cfg = salonCfg();
+    const openH = cfg.open;
+    // Salon closed that day (holiday / weekly closure) → no slots at all.
+    if (!salonOpenOn(date, cfg)) return res.json([]);
+
     // ---- "Any available barber" ----
     if (barberId === 'any') {
       const barbers = db.getActiveBarbers().filter((b) => db.barberWorksOn(b, date));
       if (!barbers.length) return res.json([]); // no barber works this day
 
       const perBarber = barbers.map((b) => {
-        const { start, end } = barberWindow(b);
+        const { start, end } = barberWindow(b, cfg);
         return {
           times: new Set(generateSlotTimesFor(start, end)),
           bookings: db.getSlotsByDate(date, b.id),
@@ -278,13 +313,13 @@ app.get('/api/slots/:date', (req, res) => {
       // Union of every working barber's slot times, ordered.
       const allTimes = new Set();
       perBarber.forEach((pb) => pb.times.forEach((t) => allTimes.add(t)));
-      const ordered = [...allTimes].sort((a, b) => slotToMinutes(a) - slotToMinutes(b));
+      const ordered = [...allTimes].sort((a, b) => slotToMinutes(a, openH) - slotToMinutes(b, openH));
 
       const result = ordered.map((time) => {
-        const slotStart = slotToMinutes(time);
+        const slotStart = slotToMinutes(time, openH);
         // Available if at least one barber works this time AND is free.
         const status = perBarber.some(
-          (pb) => pb.times.has(time) && !pb.bookings.some((bk) => bookingBlocks(bk, slotStart))
+          (pb) => pb.times.has(time) && !pb.bookings.some((bk) => bookingBlocks(bk, slotStart, openH))
         ) ? 'available' : 'taken';
         return { time, display: formatDisplay(time), status };
       });
@@ -292,21 +327,21 @@ app.get('/api/slots/:date', (req, res) => {
     }
 
     // ---- A specific barber ----
-    let slotTimes = generateSlotTimes();
+    let slotTimes = generateSlotTimesFor(cfg.open, cfg.close);
     if (barberId) {
       const barber = db.getBarber(Number(barberId));
       if (!barber || !db.barberWorksOn(barber, date)) return res.json([]); // day off
-      const { start, end } = barberWindow(barber);
+      const { start, end } = barberWindow(barber, cfg);
       slotTimes = generateSlotTimesFor(start, end);
     }
 
     const bookings = db.getSlotsByDate(date, barberId);
 
     const result = slotTimes.map((time) => {
-      const slotStart = slotToMinutes(time);
+      const slotStart = slotToMinutes(time, openH);
       let status = 'available';
       for (const b of bookings) {
-        const bStart = slotToMinutes(b.time_slot);
+        const bStart = slotToMinutes(b.time_slot, openH);
         const bEnd = bStart + (b.duration || 60);
         const slotEnd = slotStart + config.SLOT_DURATION;
         if (slotStart < bEnd && bStart < slotEnd) {
@@ -337,10 +372,15 @@ app.post('/api/book', (req, res) => {
       return res.status(400).json({ error: 'service_id is required' });
     }
 
-    const slotStart = slotToMinutes(time_slot);
+    const cfg = salonCfg();
+    if (!salonOpenOn(date, cfg)) {
+      return res.status(409).json({ error: 'الصالون مغلق في هذا اليوم' });
+    }
+
+    const slotStart = slotToMinutes(time_slot, cfg.open);
 
     const hasClash = (barberId) =>
-      db.getSlotsByDate(date, barberId).some((b) => bookingBlocks(b, slotStart));
+      db.getSlotsByDate(date, barberId).some((b) => bookingBlocks(b, slotStart, cfg.open));
 
     const baseBooking = {
       customer_name,
@@ -879,6 +919,56 @@ app.delete('/api/admin/barbers/:id', isAdmin, (req, res) => {
   } catch (err) {
     console.error('DELETE /api/admin/barbers/:id error:', err);
     res.status(500).json({ error: 'Failed to delete barber' });
+  }
+});
+
+// ──────────────────────────────────────────────
+// ADMIN – ANALYTICS
+// ──────────────────────────────────────────────
+
+app.get('/api/admin/stats', isAdmin, (_req, res) => {
+  try {
+    const raw = db.db;
+    const today = new Date().toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 7) + '-01';
+
+    const byStatus = { pending: 0, accepted: 0, rejected: 0, reserved: 0 };
+    raw.prepare('SELECT status, COUNT(*) c FROM bookings GROUP BY status').all()
+      .forEach((r) => { byStatus[r.status] = r.c; });
+
+    // Customers by phone (excluding the '-' used for manual reserves).
+    const phones = raw
+      .prepare("SELECT customer_phone, COUNT(*) c FROM bookings WHERE customer_phone != '-' AND status != 'rejected' GROUP BY customer_phone")
+      .all();
+    const returning = phones.filter((p) => p.c > 1).length;
+
+    // Bookings over the last 14 days.
+    const series = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - i);
+      const ds = d.toISOString().slice(0, 10);
+      series.push({
+        date: ds,
+        count: raw.prepare("SELECT COUNT(*) n FROM bookings WHERE date = ? AND status != 'rejected'").get(ds).n,
+      });
+    }
+
+    res.json({
+      total: raw.prepare("SELECT COUNT(*) n FROM bookings WHERE status != 'rejected'").get().n,
+      today: raw.prepare("SELECT COUNT(*) n FROM bookings WHERE date = ? AND status != 'rejected'").get(today).n,
+      month: raw.prepare("SELECT COUNT(*) n FROM bookings WHERE date >= ? AND status != 'rejected'").get(monthStart).n,
+      byStatus,
+      revenueTotal: raw.prepare("SELECT COALESCE(SUM(s.price),0) v FROM bookings b JOIN services s ON b.service_id = s.id WHERE b.status = 'accepted'").get().v,
+      revenueMonth: raw.prepare("SELECT COALESCE(SUM(s.price),0) v FROM bookings b JOIN services s ON b.service_id = s.id WHERE b.status = 'accepted' AND b.date >= ?").get(monthStart).v,
+      topServices: raw.prepare("SELECT s.name, COUNT(*) c FROM bookings b JOIN services s ON b.service_id = s.id WHERE b.status != 'rejected' GROUP BY s.id ORDER BY c DESC LIMIT 5").all(),
+      barberLoad: raw.prepare("SELECT br.name, COUNT(*) c FROM bookings b JOIN barbers br ON b.barber_id = br.id WHERE b.status != 'rejected' GROUP BY br.id ORDER BY c DESC").all(),
+      customers: { total: phones.length, returning, new: phones.length - returning },
+      series,
+    });
+  } catch (err) {
+    console.error('GET /api/admin/stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 

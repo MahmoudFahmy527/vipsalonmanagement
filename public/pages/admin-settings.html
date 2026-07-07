@@ -20,6 +20,7 @@
       </div>
       <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/stats" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإحصائيات</a>
         <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
         <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
         <a href="/admin/barbers" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحلاقين</a>
@@ -42,6 +43,34 @@
           <p class="text-muted" style="margin:0;">الاسم، اللون، الشعار، أرقام التواصل وروابط السوشيال ميديا</p>
         </div>
         <a href="/setup" class="btn btn-gold">تعديل الهوية</a>
+      </div>
+
+      <!-- Working hours & closures -->
+      <div class="card mb-3">
+        <h3 style="margin-top:0;">🕐 مواعيد العمل وأيام الإغلاق</h3>
+        <div class="form-group">
+          <label class="form-label">ساعات العمل (نظام 24 ساعة)</label>
+          <div class="flex gap-2" style="align-items:center;">
+            <input class="form-input" id="open_hour" type="number" min="0" max="23" placeholder="من (مثال 12)" style="width:100%;">
+            <span class="text-muted">—</span>
+            <input class="form-input" id="close_hour" type="number" min="0" max="23" placeholder="إلى (مثال 3)" style="width:100%;">
+          </div>
+          <div class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">يمكن أن يتجاوز منتصف الليل (مثال: من 12 إلى 3 فجراً). اتركها فارغة للوضع الافتراضي.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">أيام الإغلاق الأسبوعية</label>
+          <div class="workdays" id="closed-days"></div>
+          <div class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">اختر الأيام التي يُغلق فيها الصالون كل أسبوع.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">أيام إغلاق محددة (إجازات)</label>
+          <div class="flex gap-2" style="align-items:center;">
+            <input class="form-input" id="closed-date-input" type="date" style="width:100%;color-scheme:dark;">
+            <button type="button" class="btn btn-outline btn-sm" id="add-closed-date">إضافة</button>
+          </div>
+          <div id="closed-dates-list" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;"></div>
+        </div>
+        <button type="button" class="btn btn-gold" id="save-hours">حفظ المواعيد</button>
       </div>
 
       <!-- Home description -->

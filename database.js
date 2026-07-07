@@ -131,6 +131,11 @@ const DEFAULT_SETTINGS = {
   tiktok:           '',
   facebook:         '',
   hero_image:       '',        // URL/path; empty → gradient fallback
+  // Salon-wide opening schedule (24h clock; close may cross midnight).
+  open_hour:        '',        // '' → fall back to config/env SLOT_START_HOUR
+  close_hour:       '',        // '' → fall back to config/env SLOT_END_HOUR
+  closed_days:      '',        // comma weekday numbers 0=Sun..6=Sat the salon is closed
+  closed_dates:     '',        // comma YYYY-MM-DD holidays
   configured:       '0',       // '1' once the setup wizard is completed
 };
 

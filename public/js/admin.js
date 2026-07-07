@@ -60,6 +60,13 @@
     return `https://wa.me/${digits}`;
   }
 
+  // Pre-filled WhatsApp reminder to the customer about their appointment.
+  function reminderLink(phone, name, time, date) {
+    const salon = (window.SALON && window.SALON.salon_name) || 'صالوننا';
+    const text = `مرحباً ${name}، تذكير بموعدك في ${salon} يوم ${date} الساعة ${time}. بانتظارك 🙏`;
+    return `${waLink(phone)}?text=${encodeURIComponent(text)}`;
+  }
+
   function formatTime12(timeStr) {
     if (!timeStr) return '';
     const parts = timeStr.split(':');
@@ -232,6 +239,11 @@
           : '<span class="customer-tag new">جديد</span>';
       }
 
+      // WhatsApp appointment reminder (upcoming bookings with a real phone).
+      const reminderBtn = (phone && phone !== '-')
+        ? `<a class="btn btn-outline btn-sm" href="${reminderLink(phone, customerName, time, booking.date || selectedDate)}" target="_blank" rel="noopener">🔔 تذكير</a>`
+        : '';
+
       let actionsHTML = '';
 
       if (booking.status === 'pending') {
@@ -239,10 +251,12 @@
           <button class="btn btn-success btn-sm" onclick="adminActions.updateStatus(${booking.id}, 'accepted')">قبول</button>
           <button class="btn btn-danger btn-sm" onclick="adminActions.updateStatus(${booking.id}, 'rejected')">رفض</button>
           <button class="btn btn-outline btn-sm" onclick="adminActions.openEditModal(${booking.id}, '${booking.date || selectedDate}', '${timeSlot}', ${duration})">✏️ تعديل</button>
+          ${reminderBtn}
         `;
       } else if (booking.status === 'accepted') {
         actionsHTML = `
           <button class="btn btn-outline btn-sm" onclick="adminActions.openEditModal(${booking.id}, '${booking.date || selectedDate}', '${timeSlot}', ${duration})">✏️ تعديل</button>
+          ${reminderBtn}
           <button class="btn btn-danger btn-sm" onclick="adminActions.updateStatus(${booking.id}, 'rejected')">رفض</button>
         `;
       } else if (booking.status === 'reserved') {
