@@ -188,6 +188,11 @@ app.get('/admin/services', (req, res) => {
   res.sendFile(path.join(pagesDir, 'admin-services.html'));
 });
 
+app.get('/admin/barbers', (req, res) => {
+  if (!req.session || !req.session.isAdmin) return res.redirect('/login');
+  res.sendFile(path.join(pagesDir, 'admin-barbers.html'));
+});
+
 app.get('/admin/reviews', (req, res) => {
   if (!req.session || !req.session.isAdmin) return res.redirect('/login');
   res.sendFile(path.join(pagesDir, 'admin-reviews.html'));
@@ -221,14 +226,25 @@ app.get('/api/services', (_req, res) => {
   }
 });
 
-// Time-slot availability for a date
+// Active barbers (public). Empty array = salon doesn't use barbers.
+app.get('/api/barbers', (_req, res) => {
+  try {
+    res.json(db.getActiveBarbers());
+  } catch (err) {
+    console.error('GET /api/barbers error:', err);
+    res.status(500).json({ error: 'Failed to fetch barbers' });
+  }
+});
+
+// Time-slot availability for a date (optionally scoped to one barber)
 app.get('/api/slots/:date', (req, res) => {
   try {
     const { date } = req.params; // YYYY-MM-DD
+    const barberId = req.query.barber; // optional → per-barber calendar
 
     // Bookings may live on `date` itself, or on the *next* calendar day
     // for after-midnight slots (00:xx, 01:xx, 02:xx).
-    const bookings = db.getSlotsByDate(date);
+    const bookings = db.getSlotsByDate(date, barberId);
 
     const slotTimes = generateSlotTimes();
 
@@ -273,7 +289,7 @@ app.get('/api/slots/:date', (req, res) => {
 // Create a booking (public)
 app.post('/api/book', (req, res) => {
   try {
-    const { customer_name, customer_phone, service_id, date, time_slot, customer_token } = req.body;
+    const { customer_name, customer_phone, service_id, barber_id, date, time_slot, customer_token } = req.body;
 
     // Validation
     if (!customer_name || !customer_phone || !date || !time_slot) {
@@ -290,7 +306,8 @@ app.post('/api/book', (req, res) => {
     // simultaneous requests can't both grab the same slot.
     const result = db.bookAtomic({
       overlaps: () => {
-        const bookings = db.getSlotsByDate(date);
+        // Only the chosen barber's bookings block this slot (per-barber calendar).
+        const bookings = db.getSlotsByDate(date, barber_id);
         return bookings.some((b) => {
           const bStart = slotToMinutes(b.time_slot);
           const bEnd = bStart + (b.duration || 60);
@@ -302,6 +319,7 @@ app.post('/api/book', (req, res) => {
         customer_name,
         customer_phone,
         service_id: Number(service_id),
+        barber_id: barber_id ? Number(barber_id) : null,
         date,
         time_slot,
         duration: config.SLOT_DURATION,
@@ -518,16 +536,19 @@ app.get('/api/auth/check', (req, res) => {
 app.get('/api/admin/bookings/:date', isAdmin, (req, res) => {
   try {
     const { date } = req.params;
-    const rows = db.db
-      .prepare(
-        `SELECT b.*, s.name AS service_name, s.name_en AS service_name_en,
-                s.price AS service_price, s.duration AS service_duration
-         FROM bookings b
-         LEFT JOIN services s ON b.service_id = s.id
-         WHERE b.date = ?
-         ORDER BY b.time_slot`
-      )
-      .all(date);
+    const barberId = req.query.barber; // optional filter → one barber's day
+    let sql =
+      `SELECT b.*, s.name AS service_name, s.name_en AS service_name_en,
+              s.price AS service_price, s.duration AS service_duration,
+              br.name AS barber_name
+       FROM bookings b
+       LEFT JOIN services s ON b.service_id = s.id
+       LEFT JOIN barbers br ON b.barber_id = br.id
+       WHERE b.date = ?`;
+    const params = [date];
+    if (barberId) { sql += ' AND b.barber_id = ?'; params.push(Number(barberId)); }
+    sql += ' ORDER BY b.time_slot';
+    const rows = db.db.prepare(sql).all(...params);
     // Flag returning customers (booked before under the same phone).
     for (const b of rows) {
       b.is_returning = db.isReturningCustomer(b.customer_phone, b.id);
@@ -571,7 +592,7 @@ app.put('/api/admin/bookings/:id/time', isAdmin, (req, res) => {
 
 app.post('/api/admin/reserve', isAdmin, (req, res) => {
   try {
-    const { date, time_slot, note, duration } = req.body;
+    const { date, time_slot, note, duration, barber_id } = req.body;
     if (!date || !time_slot) {
       return res.status(400).json({ error: 'date and time_slot are required' });
     }
@@ -579,6 +600,7 @@ app.post('/api/admin/reserve', isAdmin, (req, res) => {
       customer_name: 'محجوز',
       customer_phone: '-',
       service_id: null,
+      barber_id: barber_id ? Number(barber_id) : null,
       date,
       time_slot,
       duration: duration || config.SLOT_DURATION,
@@ -741,6 +763,63 @@ app.delete('/api/admin/services/:id', isAdmin, (req, res) => {
   } catch (err) {
     console.error('DELETE /api/admin/services/:id error:', err);
     res.status(500).json({ error: 'Failed to delete service' });
+  }
+});
+
+// ──────────────────────────────────────────────
+// ADMIN – BARBERS
+// ──────────────────────────────────────────────
+
+app.get('/api/admin/barbers', isAdmin, (_req, res) => {
+  try {
+    res.json(db.getAllBarbers());
+  } catch (err) {
+    console.error('GET /api/admin/barbers error:', err);
+    res.status(500).json({ error: 'Failed to fetch barbers' });
+  }
+});
+
+app.post('/api/admin/barbers', isAdmin, (req, res) => {
+  try {
+    const { name, specialty, sort_order } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const barber = db.createBarber({ name, specialty, sort_order });
+    res.status(201).json({ success: true, barber });
+  } catch (err) {
+    console.error('POST /api/admin/barbers error:', err);
+    res.status(500).json({ error: 'Failed to create barber' });
+  }
+});
+
+app.put('/api/admin/barbers/:id', isAdmin, (req, res) => {
+  try {
+    const { name, specialty, sort_order } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    db.updateBarber(Number(req.params.id), { name, specialty, sort_order });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /api/admin/barbers/:id error:', err);
+    res.status(500).json({ error: 'Failed to update barber' });
+  }
+});
+
+app.put('/api/admin/barbers/:id/toggle', isAdmin, (req, res) => {
+  try {
+    db.toggleBarber(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /api/admin/barbers/:id/toggle error:', err);
+    res.status(500).json({ error: 'Failed to toggle barber' });
+  }
+});
+
+app.delete('/api/admin/barbers/:id', isAdmin, (req, res) => {
+  try {
+    db.deleteBarber(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/admin/barbers/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete barber' });
   }
 });
 

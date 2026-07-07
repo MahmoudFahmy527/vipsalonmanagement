@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الحلاقين — صالونك</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/brand.js"></script>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <div class="flex" style="align-items:center;gap:0.75rem;">
+        <span class="logo-icon" style="font-size:1.5rem;">✂</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
+      </div>
+      <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
+        <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
+        <a href="/admin/barbers" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الحلاقين</a>
+        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
+        <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
+        <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
+        <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="container mt-2" style="max-width:820px;">
+      <div class="action-bar flex-between" style="margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <h2 style="margin:0;">الحلاقين</h2>
+          <p class="text-muted" style="margin:0;">أضف حلاقيك — سيختار العميل من بينهم، ولكل حلاق مواعيده الخاصة.</p>
+        </div>
+        <button class="btn btn-gold" id="add-btn">+ إضافة حلاق</button>
+      </div>
+
+      <div id="barbers-list">
+        <div class="flex-center mt-3"><div class="spinner"></div></div>
+      </div>
+
+      <p class="text-muted mt-3" style="font-size:0.9rem;">
+        💡 إذا لم تضف أي حلاق، سيتخطى العميل هذه الخطوة ويحجز مباشرة (تقويم واحد للصالون).
+      </p>
+    </div>
+  </div>
+
+  <!-- Add / Edit modal -->
+  <div class="modal-overlay hidden" id="barber-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">إضافة حلاق</h3>
+        <button class="btn btn-icon" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="barber-id">
+        <div class="form-group">
+          <label class="form-label">الاسم *</label>
+          <input class="form-input" id="barber-name" placeholder="مثال: أحمد">
+        </div>
+        <div class="form-group">
+          <label class="form-label">التخصص (اختياري)</label>
+          <input class="form-input" id="barber-specialty" placeholder="مثال: قص وتحديد ذقن">
+        </div>
+        <div class="form-group">
+          <label class="form-label">الترتيب (اختياري)</label>
+          <input class="form-input" id="barber-sort" type="number" value="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="modal-cancel">إلغاء</button>
+        <button class="btn btn-gold" id="modal-save">حفظ</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/js/admin-barbers.js"></script>
+</body>
+</html>

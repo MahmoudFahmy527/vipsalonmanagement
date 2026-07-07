@@ -27,7 +27,6 @@
         <a href="/services">خدماتنا</a>
         <a href="/gallery">معرض الأعمال</a>
         <a href="/book" class="active">احجز الآن</a>
-        <a href="/login" class="login-link">تسجيل الدخول</a>
       </div>
       <div class="navbar-toggle" onclick="toggleNav()">
         <span></span><span></span><span></span>
@@ -59,21 +58,11 @@
 
     <!-- Steps -->
     <div class="steps" id="stepsIndicator">
-      <div class="step active" data-step="1">
-        <div class="step-circle">1</div>
-        <div class="step-line"></div>
-      </div>
-      <div class="step" data-step="2">
-        <div class="step-circle">2</div>
-        <div class="step-line"></div>
-      </div>
-      <div class="step" data-step="3">
-        <div class="step-circle">3</div>
-        <div class="step-line"></div>
-      </div>
-      <div class="step" data-step="4">
-        <div class="step-circle">4</div>
-      </div>
+      <div class="step active" data-step="1"><div class="step-circle">1</div><div class="step-line"></div></div>
+      <div class="step" data-step="2"><div class="step-circle">2</div><div class="step-line"></div></div>
+      <div class="step" data-step="3"><div class="step-circle">3</div><div class="step-line"></div></div>
+      <div class="step" data-step="4"><div class="step-circle">4</div><div class="step-line"></div></div>
+      <div class="step" data-step="5"><div class="step-circle">5</div></div>
     </div>
 
     <!-- Step 1: Select Service -->
@@ -86,17 +75,30 @@
       </div>
     </div>
 
-    <!-- Step 2: Select Date -->
+    <!-- Step 2: Select Barber (hidden automatically when the salon has no barbers) -->
     <div class="booking-step hidden" id="step2">
-      <h2>اختر التاريخ</h2>
-      <div class="date-picker" id="datePicker"></div>
+      <h2>اختر الحلاق</h2>
+      <div class="service-select-grid" id="barbersGrid">
+        <div class="flex-center" style="grid-column: 1/-1;">
+          <div class="spinner"></div>
+        </div>
+      </div>
       <div class="text-center mt-3">
         <button class="btn btn-outline btn-sm" onclick="goToStep(1)">← رجوع</button>
       </div>
     </div>
 
-    <!-- Step 3: Select Time Slot -->
+    <!-- Step 3: Select Date -->
     <div class="booking-step hidden" id="step3">
+      <h2>اختر التاريخ</h2>
+      <div class="date-picker" id="datePicker"></div>
+      <div class="text-center mt-3">
+        <button class="btn btn-outline btn-sm" onclick="goToStep(state.skipBarber ? 1 : 2)">← رجوع</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Select Time Slot -->
+    <div class="booking-step hidden" id="step4">
       <h2>اختر الموعد</h2>
       <p class="text-center text-muted mb-2" id="selectedDateLabel"></p>
       <div class="flex-center gap-2 mb-3" style="flex-wrap:wrap;">
@@ -110,12 +112,12 @@
         </div>
       </div>
       <div class="text-center mt-3">
-        <button class="btn btn-outline btn-sm" onclick="goToStep(2)">← رجوع</button>
+        <button class="btn btn-outline btn-sm" onclick="goToStep(3)">← رجوع</button>
       </div>
     </div>
 
-    <!-- Step 4: Details & Confirm -->
-    <div class="booking-step hidden" id="step4">
+    <!-- Step 5: Details & Confirm -->
+    <div class="booking-step hidden" id="step5">
       <h2>أدخل بياناتك</h2>
       <div class="card mb-3" id="bookingSummary"></div>
       <form id="bookingForm" onsubmit="submitBooking(event)">
@@ -129,7 +131,7 @@
         </div>
         <div class="flex gap-2 mt-3">
           <button type="submit" class="btn btn-gold w-full" id="submitBtn">تأكيد الحجز</button>
-          <button type="button" class="btn btn-outline" onclick="goToStep(3)">رجوع</button>
+          <button type="button" class="btn btn-outline" onclick="goToStep(4)">رجوع</button>
         </div>
       </form>
     </div>

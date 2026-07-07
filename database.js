@@ -33,11 +33,21 @@ db.exec(`
     created_at  TEXT    DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS barbers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    specialty   TEXT    DEFAULT '',
+    is_active   INTEGER DEFAULT 1,
+    sort_order  INTEGER DEFAULT 0,
+    created_at  TEXT    DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS bookings (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_name  TEXT    NOT NULL,
     customer_phone TEXT    NOT NULL,
     service_id     INTEGER,
+    barber_id      INTEGER,
     date           TEXT    NOT NULL,
     time_slot      TEXT    NOT NULL,
     duration       INTEGER DEFAULT 60,
@@ -85,6 +95,8 @@ function ensureColumn(table, column, definition) {
 // Per-device customer token → lets a returning customer be recognised and see
 // their own bookings, without accounts or exposing phone numbers publicly.
 ensureColumn('bookings', 'customer_token', 'TEXT');
+// Which barber the booking is for (null = salon doesn't use barbers).
+ensureColumn('bookings', 'barber_id', 'INTEGER');
 // Gallery moderation: admin uploads are 'approved'; customer submissions land
 // as 'pending' until the owner approves them.
 ensureColumn('gallery', 'status', "TEXT DEFAULT 'approved'");
@@ -125,30 +137,43 @@ for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
 // ──────────────────────────────────────────────
 
 /**
- * Return all non-rejected bookings for a given date (YYYY-MM-DD).
+ * Non-rejected bookings for a date. When a barberId is given, only that
+ * barber's bookings count — so each barber has an independent calendar.
+ * With no barberId (salon not using barbers), all bookings for the date
+ * are returned (legacy single-calendar behaviour).
  */
-function getSlotsByDate(date) {
+function getSlotsByDate(date, barberId) {
+  if (barberId === undefined || barberId === null || barberId === '') {
+    return db
+      .prepare(
+        `SELECT * FROM bookings
+         WHERE date = ? AND status != 'rejected'
+         ORDER BY time_slot`
+      )
+      .all(date);
+  }
   return db
     .prepare(
       `SELECT * FROM bookings
-       WHERE date = ? AND status != 'rejected'
+       WHERE date = ? AND status != 'rejected' AND barber_id = ?
        ORDER BY time_slot`
     )
-    .all(date);
+    .all(date, Number(barberId));
 }
 
 /**
  * Insert a new booking and return the created row.
  */
-function createBooking({ customer_name, customer_phone, service_id, date, time_slot, duration, status, note, customer_token }) {
+function createBooking({ customer_name, customer_phone, service_id, barber_id, date, time_slot, duration, status, note, customer_token }) {
   const stmt = db.prepare(
-    `INSERT INTO bookings (customer_name, customer_phone, service_id, date, time_slot, duration, status, note, customer_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO bookings (customer_name, customer_phone, service_id, barber_id, date, time_slot, duration, status, note, customer_token, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const info = stmt.run(
     customer_name,
     customer_phone,
     service_id || null,
+    barber_id || null,
     date,
     time_slot,
     duration || 60,
@@ -270,6 +295,41 @@ function deleteGalleryItem(id) {
   const row = db.prepare('SELECT filename FROM gallery WHERE id = ?').get(id);
   db.prepare('DELETE FROM gallery WHERE id = ?').run(id);
   return row ? row.filename : null;
+}
+
+// ──────────────────────────────────────────────
+// Barber helpers
+// ──────────────────────────────────────────────
+
+function getActiveBarbers() {
+  return db.prepare('SELECT * FROM barbers WHERE is_active = 1 ORDER BY sort_order, id').all();
+}
+
+function getAllBarbers() {
+  return db.prepare('SELECT * FROM barbers ORDER BY sort_order, id').all();
+}
+
+function createBarber({ name, specialty, sort_order }) {
+  const info = db
+    .prepare('INSERT INTO barbers (name, specialty, sort_order, created_at) VALUES (?, ?, ?, ?)')
+    .run(name, specialty || '', sort_order || 0, new Date().toISOString());
+  return db.prepare('SELECT * FROM barbers WHERE id = ?').get(info.lastInsertRowid);
+}
+
+function updateBarber(id, { name, specialty, sort_order }) {
+  return db
+    .prepare('UPDATE barbers SET name = ?, specialty = ?, sort_order = ? WHERE id = ?')
+    .run(name, specialty || '', sort_order || 0, id);
+}
+
+function toggleBarber(id) {
+  return db
+    .prepare('UPDATE barbers SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?')
+    .run(id);
+}
+
+function deleteBarber(id) {
+  return db.prepare('DELETE FROM barbers WHERE id = ?').run(id);
 }
 
 // ──────────────────────────────────────────────
@@ -455,6 +515,13 @@ module.exports = {
   approveGalleryItem,
   updateGalleryDescription,
   deleteGalleryItem,
+  // Barbers
+  getActiveBarbers,
+  getAllBarbers,
+  createBarber,
+  updateBarber,
+  toggleBarber,
+  deleteBarber,
   // Services
   getActiveServices,
   getAllServices,

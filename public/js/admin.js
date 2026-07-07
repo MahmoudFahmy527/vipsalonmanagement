@@ -37,6 +37,7 @@
   };
 
   let selectedDate = formatDate(new Date());
+  let selectedBarberFilter = '';
   let confirmCallback = null;
 
   // ----------------------------------------------------------
@@ -143,7 +144,8 @@
     }
 
     try {
-      const res = await fetch(`/api/admin/bookings/${selectedDate}`);
+      const q = selectedBarberFilter ? `?barber=${selectedBarberFilter}` : '';
+      const res = await fetch(`/api/admin/bookings/${selectedDate}${q}`);
       if (!res.ok) throw new Error('فشل في تحميل الحجوزات');
       const data = await res.json();
       const bookings = data.bookings || data || [];
@@ -152,6 +154,35 @@
       renderBookings(bookings);
     } catch (err) {
       listEl.innerHTML = `<div class="empty-state"><p>⚠️ ${err.message}</p></div>`;
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Barbers (filter + manual-reserve select)
+  // ----------------------------------------------------------
+  let barbers = [];
+  async function loadBarbers() {
+    try {
+      barbers = await (await fetch('/api/barbers')).json();
+    } catch (_) { barbers = []; }
+    if (!Array.isArray(barbers) || !barbers.length) return; // salon not using barbers
+
+    const filter = document.getElementById('barber-filter');
+    if (filter) {
+      filter.innerHTML = '<option value="">كل الحلاقين</option>' +
+        barbers.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      filter.style.display = '';
+      filter.addEventListener('change', () => {
+        selectedBarberFilter = filter.value;
+        loadBookings();
+      });
+    }
+    const reserveSel = document.getElementById('reserve-barber');
+    if (reserveSel) {
+      reserveSel.innerHTML = '<option value="">— بدون تحديد —</option>' +
+        barbers.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      const wrap = document.getElementById('reserve-barber-group');
+      if (wrap) wrap.style.display = '';
     }
   }
 
@@ -236,6 +267,7 @@
           <div class="meta-item">🕐 <span class="value">${time}</span></div>
           <div class="meta-item">⏱ <span class="value">${duration} د</span></div>
           <div class="meta-item">💇 <span class="value">${serviceName}</span></div>
+          ${booking.barber_name ? `<div class="meta-item">✂️ <span class="value">${booking.barber_name}</span></div>` : ''}
           <span class="${badgeClass}">${statusLabel}</span>
         </div>
         <div class="booking-actions">
@@ -322,6 +354,8 @@
     const time = document.getElementById('reserve-time').value;
     const duration = parseInt(document.getElementById('reserve-duration').value, 10) || 60;
     const note = document.getElementById('reserve-note').value.trim();
+    const barberSel = document.getElementById('reserve-barber');
+    const barber_id = barberSel && barberSel.value ? Number(barberSel.value) : null;
 
     if (!date || !time) {
       showToast('يرجى اختيار التاريخ والوقت', 'error');
@@ -335,7 +369,7 @@
       const res = await fetch('/api/admin/reserve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, time_slot: time, duration, note })
+        body: JSON.stringify({ date, time_slot: time, duration, note, barber_id })
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -443,6 +477,7 @@
   renderDatePicker();
   populateTimeSelect(document.getElementById('reserve-time'));
   populateTimeSelect(document.getElementById('edit-time'));
+  loadBarbers();
   loadBookings();
 
 })();
