@@ -207,6 +207,9 @@ app.get('/admin/qr', (req, res) => {
 // PUBLIC API
 // ──────────────────────────────────────────────
 
+// Health check (for Railway/Render probes)
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
+
 // Active services
 app.get('/api/services', (_req, res) => {
   try {

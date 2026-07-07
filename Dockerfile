@@ -12,11 +12,11 @@ RUN npm ci --omit=dev || npm install --omit=dev
 
 COPY . .
 
-# Persist database + uploads outside the image
+# Persist database + uploads on a mounted volume (Railway/Render disk at /data).
+# PORT is provided by the host at runtime; don't hardcode it.
 ENV DB_PATH=/data/salon.db
 ENV UPLOAD_DIR=/data/uploads
 ENV NODE_ENV=production
-ENV PORT=3000
 VOLUME ["/data"]
 
 EXPOSE 3000

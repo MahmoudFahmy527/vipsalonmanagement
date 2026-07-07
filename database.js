@@ -1,8 +1,15 @@
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
-const db = new Database(process.env.DB_PATH || path.join(__dirname, 'salon.db'));
+const DB_FILE = process.env.DB_PATH || path.join(__dirname, 'salon.db');
+
+// Ensure the database directory exists (e.g. a freshly-mounted /data volume
+// on Railway/Render) so better-sqlite3 can create the file.
+fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+
+const db = new Database(DB_FILE);
 
 // Enable WAL mode for better concurrent read performance
 db.pragma('journal_mode = WAL');

@@ -52,11 +52,43 @@ ADMIN_PASSWORD=<strong password>   # only seeds the first account
 deployment. The admin password is hashed (scrypt) and stored in the DB — it is
 never persisted in plain text there.
 
-### Node host (Render / Railway / VPS / Odoo.sh-style)
+### Railway (recommended — one salon per project)
+
+Railway builds the included `Dockerfile` (Node 20, so no native-build issues)
+and reads `railway.json`. Do NOT deploy this to Vercel or any serverless host —
+it needs a persistent disk and a long-running process.
+
+**Steps (per salon):**
+
+1. **New Project → Deploy from GitHub repo** → pick this repo. Railway detects
+   the Dockerfile and builds automatically.
+2. **Add a Volume:** service → **Variables/Settings → Volumes → New Volume**,
+   mount path **`/data`**. (The DB and uploads already point here — see the
+   Dockerfile. This is what makes bookings & photos survive redeploys.)
+3. **Set variables** (service → **Variables**):
+   ```
+   SESSION_SECRET = <long random string>
+   ADMIN_PASSWORD = <strong password>
+   NODE_ENV       = production
+   ```
+   Leave `PORT` alone — Railway injects it and the app reads it automatically.
+   `DB_PATH` / `UPLOAD_DIR` are preset to `/data/...` in the image; only override
+   them if you mount the volume somewhere else.
+4. **Generate a domain:** service → **Settings → Networking → Generate Domain**.
+5. Open `https://<your-app>.up.railway.app/setup` → brand the salon → done.
+
+To sell another salon, duplicate the project (or deploy the repo again) and
+repeat — a couple of minutes each, fully isolated data per salon.
+
+> Sessions live in memory, so an admin is logged out after a redeploy (data is
+> safe on the volume — only the login cookie resets). Fine for a single-instance
+> salon; ask if you want a SQLite-backed session store to avoid even that.
+
+### Other Node hosts / VPS
 
 ```bash
 npm ci --omit=dev
-node server.js
+DB_PATH=/data/salon.db UPLOAD_DIR=/data/uploads node server.js
 ```
 
 Point a persistent disk at `DB_PATH` (SQLite file) and `UPLOAD_DIR` (media) so
