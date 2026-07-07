@@ -12,12 +12,14 @@ RUN npm ci --omit=dev || npm install --omit=dev
 
 COPY . .
 
-# Persist database + uploads on a mounted volume (Railway/Render disk at /data).
+# Database + uploads live on a volume mounted at /data by the host.
+# Railway manages volumes itself and rejects the Docker VOLUME instruction, so
+# we don't declare one — the app creates /data at runtime (see database.js /
+# server.js), and the host's mounted volume provides persistence.
 # PORT is provided by the host at runtime; don't hardcode it.
 ENV DB_PATH=/data/salon.db
 ENV UPLOAD_DIR=/data/uploads
 ENV NODE_ENV=production
-VOLUME ["/data"]
 
 EXPOSE 3000
 CMD ["node", "server.js"]
