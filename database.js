@@ -78,6 +78,12 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint   TEXT PRIMARY KEY,
+    sub        TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // ──────────────────────────────────────────────
@@ -463,6 +469,24 @@ function updateSetting(key, value) {
   return db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
 }
 
+// ──────────────────────────────────────────────
+// Web-Push subscriptions (installed-PWA background notifications)
+// ──────────────────────────────────────────────
+
+function addPushSub(sub) {
+  return db
+    .prepare('INSERT OR REPLACE INTO push_subscriptions (endpoint, sub, created_at) VALUES (?, ?, ?)')
+    .run(sub.endpoint, JSON.stringify(sub), new Date().toISOString());
+}
+
+function getPushSubs() {
+  return db.prepare('SELECT sub FROM push_subscriptions').all().map((r) => JSON.parse(r.sub));
+}
+
+function removePushSub(endpoint) {
+  return db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+}
+
 function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? row.value : null;
@@ -478,6 +502,7 @@ function getPublicSettings() {
   for (const [k, v] of Object.entries(all)) {
     if (k.startsWith('admin_')) continue;     // credentials
     if (k.startsWith('telegram_')) continue;  // owner's private bot token / chat id
+    if (k.startsWith('vapid_')) continue;     // web-push server keys
     out[k] = v;
   }
   return out;
@@ -602,6 +627,10 @@ module.exports = {
   getPublicSettings,
   getSetting,
   updateSetting,
+  // Push subscriptions
+  addPushSub,
+  getPushSubs,
+  removePushSub,
   // Auth
   ensureAdmin,
   checkAdminCredentials,

@@ -6,9 +6,36 @@ const fs = require('fs');
 
 const config = require('./config');
 const db = require('./database');
+const webpush = require('web-push');
 
 // Seed the first admin account (hashed) from env/config on first run.
 db.ensureAdmin(config.ADMIN_USERNAME, config.ADMIN_PASSWORD);
+
+// ── Web Push (installed-PWA background notifications) ──
+// Generate a VAPID keypair once and persist it in settings.
+(function initVapid() {
+  let pub = db.getSetting('vapid_public');
+  let priv = db.getSetting('vapid_private');
+  if (!pub || !priv) {
+    const keys = webpush.generateVAPIDKeys();
+    pub = keys.publicKey; priv = keys.privateKey;
+    db.updateSetting('vapid_public', pub);
+    db.updateSetting('vapid_private', priv);
+  }
+  const subject = process.env.VAPID_SUBJECT || 'mailto:owner@salon.app';
+  webpush.setVapidDetails(subject, pub, priv);
+})();
+
+// Send a push to every subscribed (installed) device; prune dead subscriptions.
+function sendPush(payload) {
+  const subs = db.getPushSubs();
+  const body = JSON.stringify(payload);
+  for (const sub of subs) {
+    webpush.sendNotification(sub, body).catch((err) => {
+      if (err.statusCode === 404 || err.statusCode === 410) db.removePushSub(sub.endpoint);
+    });
+  }
+}
 
 // Fire-and-forget Telegram push to the owner (free; no per-message cost).
 // Uses the salon's own bot token + chat id from settings; silent no-op if unset.
@@ -281,6 +308,29 @@ app.get('/admin/qr', (req, res) => {
 // Health check (for Railway/Render probes)
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
+// Dynamic PWA manifest for the installable admin app (branded per salon).
+app.get('/manifest.webmanifest', (_req, res) => {
+  const name = db.getSetting('salon_name') || 'Salon';
+  const brand = db.getSetting('brand_color') || '#c9a84c';
+  res.type('application/manifest+json').json({
+    name: `${name} — الإدارة`,
+    short_name: name,
+    description: `لوحة تحكم ${name}`,
+    start_url: '/admin',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    lang: 'ar',
+    dir: 'rtl',
+    background_color: '#0a0a0b',
+    theme_color: brand,
+    icons: [
+      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+    ],
+  });
+});
+
 // Active services
 app.get('/api/services', (_req, res) => {
   try {
@@ -457,6 +507,12 @@ app.post('/api/book', (req, res) => {
       `📅 ${date}  ⏰ ${formatDisplay(time_slot)}`,
     ].filter(Boolean);
     sendTelegram(lines.join('\n'));
+    sendPush({
+      title: '🆕 حجز جديد',
+      body: `${customer_name} — ${svc ? svc.name : 'خدمة'}\n${date}  ${formatDisplay(time_slot)}`,
+      url: '/admin',
+      tag: 'booking-' + (result.booking ? result.booking.id : Date.now()),
+    });
 
     res.status(201).json({
       success: true,
@@ -1021,6 +1077,31 @@ app.get('/api/admin/notifications', isAdmin, (req, res) => {
     console.error('GET /api/admin/notifications error:', err);
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
+});
+
+// Web-push: the client needs the VAPID public key to subscribe.
+app.get('/api/admin/push/config', isAdmin, (_req, res) => {
+  res.json({ publicKey: db.getSetting('vapid_public') || '', count: db.getPushSubs().length });
+});
+
+// Save a device's push subscription (from the installed admin PWA).
+app.post('/api/admin/push/subscribe', isAdmin, (req, res) => {
+  try {
+    const sub = req.body;
+    if (!sub || !sub.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+    db.addPushSub(sub);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /api/admin/push/subscribe error:', err);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+// Send a test push to all subscribed devices.
+app.post('/api/admin/push/test', isAdmin, (_req, res) => {
+  if (!db.getPushSubs().length) return res.status(400).json({ error: 'لا توجد أجهزة مشتركة بعد' });
+  sendPush({ title: '✅ إشعارات تعمل', body: 'سيصلك إشعار هنا عند كل حجز جديد.', url: '/admin' });
+  res.json({ success: true });
 });
 
 // Send a Telegram test message (verifies the owner's bot token + chat id).

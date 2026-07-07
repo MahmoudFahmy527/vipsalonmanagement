@@ -527,6 +527,55 @@
     } catch (_) {}
   }
 
+  // ----------------------------------------------------------
+  // Installed-PWA background push (works when nothing is open)
+  // ----------------------------------------------------------
+  function urlB64ToUint8Array(base64) {
+    const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+    const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(b64);
+    return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  }
+
+  async function initPush() {
+    const btn = document.getElementById('push-enable-btn');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !btn) return;
+
+    let reg;
+    try { reg = await navigator.serviceWorker.register('/sw.js'); }
+    catch (_) { return; }
+
+    let publicKey = '';
+    try { publicKey = (await (await fetch('/api/admin/push/config')).json()).publicKey; } catch (_) {}
+    if (!publicKey) return;
+
+    const existing = await reg.pushManager.getSubscription();
+    if (existing && Notification.permission === 'granted') return; // already on
+
+    btn.style.display = '';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') { showToast('لم يتم منح إذن الإشعارات', 'error'); btn.disabled = false; return; }
+        const sub = existing || await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8Array(publicKey),
+        });
+        const res = await fetch('/api/admin/push/subscribe', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub),
+        });
+        if (!res.ok) throw new Error();
+        showToast('✅ تم تفعيل الإشعارات على هذا الجهاز');
+        btn.style.display = 'none';
+      } catch (_) {
+        showToast('تعذر تفعيل الإشعارات', 'error');
+        btn.disabled = false;
+      }
+    });
+  }
+
   function initNotifications() {
     if ('Notification' in window && Notification.permission === 'default') {
       const ask = () => { Notification.requestPermission().catch(() => {}); document.removeEventListener('pointerdown', ask); };
@@ -548,5 +597,6 @@
   loadBarbers();
   loadBookings();
   initNotifications();
+  initPush();
 
 })();
