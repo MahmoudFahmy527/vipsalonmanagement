@@ -25,15 +25,65 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function loadSettings() {
-    fetch('/api/settings')
+    // Admin endpoint returns private keys (Telegram) too.
+    fetch('/api/admin/settings')
       .then(res => res.json())
       .then(settings => {
-        // /api/settings returns an object { key: value }
-        if (settings && settings.home_description) homeDescInput.value = settings.home_description;
-        if (settings) loadHours(settings);
+        if (!settings) return;
+        if (settings.home_description) homeDescInput.value = settings.home_description;
+        loadHours(settings);
+        document.getElementById('instagram_posts').value = settings.instagram_posts || '';
+        document.getElementById('instagram_embed').value = settings.instagram_embed || '';
+        document.getElementById('telegram_bot_token').value = settings.telegram_bot_token || '';
+        document.getElementById('telegram_chat_id').value = settings.telegram_chat_id || '';
       })
       .catch(() => showToast('حدث خطأ أثناء تحميل الإعدادات', 'error'));
   }
+
+  async function putSetting(key, value) {
+    return fetch('/api/admin/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    });
+  }
+
+  // Instagram
+  document.getElementById('save-instagram').addEventListener('click', async () => {
+    try {
+      await putSetting('instagram_posts', document.getElementById('instagram_posts').value.trim());
+      await putSetting('instagram_embed', document.getElementById('instagram_embed').value.trim());
+      showToast('تم حفظ إعدادات إنستجرام');
+    } catch (_) { showToast('تعذر الحفظ', 'error'); }
+  });
+
+  // Telegram notifications
+  document.getElementById('save-telegram').addEventListener('click', async () => {
+    try {
+      await putSetting('telegram_bot_token', document.getElementById('telegram_bot_token').value.trim());
+      await putSetting('telegram_chat_id', document.getElementById('telegram_chat_id').value.trim());
+      showToast('تم حفظ إعدادات الإشعارات');
+    } catch (_) { showToast('تعذر الحفظ', 'error'); }
+  });
+
+  document.getElementById('test-telegram').addEventListener('click', async () => {
+    const token = document.getElementById('telegram_bot_token').value.trim();
+    const chat_id = document.getElementById('telegram_chat_id').value.trim();
+    if (!token || !chat_id) { showToast('أدخل التوكن ومعرّف المحادثة', 'error'); return; }
+    const btn = document.getElementById('test-telegram');
+    btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+    try {
+      const res = await fetch('/api/admin/telegram-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, chat_id }),
+      });
+      const data = await res.json();
+      showToast(res.ok && data.success ? '✅ تم الإرسال! تحقق من تليجرام' : (data.error || 'فشل الإرسال'), res.ok ? 'success' : 'error');
+    } catch (_) {
+      showToast('تعذر الاتصال', 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'اختبار الإرسال';
+    }
+  });
 
   // ---- Working hours & closures ----
   const DAY_NAMES = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];

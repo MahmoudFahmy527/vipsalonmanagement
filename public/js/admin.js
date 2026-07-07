@@ -486,6 +486,60 @@
   });
 
   // ----------------------------------------------------------
+  // Live booking notifications (in-app + browser alert)
+  // ----------------------------------------------------------
+  let lastSeenId = null;
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.06;
+      o.start();
+      o.frequency.setValueAtTime(660, ctx.currentTime + 0.13);
+      o.stop(ctx.currentTime + 0.26);
+    } catch (_) {}
+  }
+
+  function browserNotify(b) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      new Notification('🆕 حجز جديد', {
+        body: `${b.customer_name} — ${b.service_name || 'خدمة'}\n${b.date} ${formatTime12(b.time_slot)}`,
+        tag: 'booking-' + b.id,
+      });
+    } catch (_) {}
+  }
+
+  async function pollNotifications() {
+    try {
+      const url = '/api/admin/notifications' + (lastSeenId != null ? `?sinceId=${lastSeenId}` : '');
+      const data = await (await fetch(url)).json();
+      if (lastSeenId == null) { lastSeenId = data.maxId; return; } // baseline; don't alert existing
+      if (data.newBookings && data.newBookings.length) {
+        data.newBookings.forEach((b) => { showToast(`حجز جديد: ${b.customer_name}`, 'success'); browserNotify(b); });
+        beep();
+        loadBookings(); // refresh the list + stats
+        document.title = `(${data.newBookings.length}) لوحة التحكم`;
+      }
+      lastSeenId = data.maxId;
+    } catch (_) {}
+  }
+
+  function initNotifications() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      const ask = () => { Notification.requestPermission().catch(() => {}); document.removeEventListener('pointerdown', ask); };
+      Notification.requestPermission().catch(() => {});
+      document.addEventListener('pointerdown', ask, { once: true }); // retry on first gesture
+    }
+    // reset the title badge when the owner returns to the tab
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) document.title = 'لوحة التحكم'; });
+    pollNotifications();               // establish baseline
+    setInterval(pollNotifications, 25000);
+  }
+
+  // ----------------------------------------------------------
   // Init
   // ----------------------------------------------------------
   renderDatePicker();
@@ -493,5 +547,6 @@
   populateTimeSelect(document.getElementById('edit-time'));
   loadBarbers();
   loadBookings();
+  initNotifications();
 
 })();

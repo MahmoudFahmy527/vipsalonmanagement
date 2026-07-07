@@ -84,6 +84,44 @@
         </form>
       </div>
 
+      <!-- Instagram feed -->
+      <div class="card mb-3">
+        <h3 style="margin-top:0;">📸 إنستجرام</h3>
+        <div class="form-group">
+          <label class="form-label">روابط منشورات إنستجرام (رابط في كل سطر)</label>
+          <textarea class="form-textarea" id="instagram_posts" rows="4" dir="ltr" placeholder="https://www.instagram.com/p/XXXXXXXXX/&#10;https://www.instagram.com/p/YYYYYYYYY/"></textarea>
+          <div class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">تظهر كمنشورات إنستجرام حقيقية في الصفحة الرئيسية. الصق رابط أي منشور عام.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">أو: كود عرض تلقائي (اختياري)</label>
+          <textarea class="form-textarea" id="instagram_embed" rows="3" dir="ltr" placeholder="الصق كود التضمين من Behold / LightWidget لعرض تلقائي محدّث"></textarea>
+          <div class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">إذا مُلئ هذا الحقل، يُستخدم بدلاً من الروابط أعلاه (عرض تلقائي محدّث).</div>
+        </div>
+        <button type="button" class="btn btn-gold" id="save-instagram">حفظ إنستجرام</button>
+      </div>
+
+      <!-- Booking notifications (Telegram) -->
+      <div class="card mb-3">
+        <h3 style="margin-top:0;">🔔 إشعارات الحجز (تليجرام)</h3>
+        <p class="text-muted" style="margin-top:0;font-size:0.88rem;">
+          استقبل إشعاراً على هاتفك عند كل حجز جديد — مجاناً. أنشئ بوت عبر
+          <span dir="ltr">@BotFather</span> على تليجرام واحصل على التوكن، ثم أرسل رسالة للبوت واحصل على معرّف المحادثة من
+          <span dir="ltr">@userinfobot</span>.
+        </p>
+        <div class="form-group">
+          <label class="form-label">توكن البوت (Bot Token)</label>
+          <input class="form-input" id="telegram_bot_token" dir="ltr" placeholder="123456:ABC-DEF...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">معرّف المحادثة (Chat ID)</label>
+          <input class="form-input" id="telegram_chat_id" dir="ltr" placeholder="123456789">
+        </div>
+        <div class="flex gap-2" style="flex-wrap:wrap;">
+          <button type="button" class="btn btn-gold" id="save-telegram">حفظ</button>
+          <button type="button" class="btn btn-outline" id="test-telegram">اختبار الإرسال</button>
+        </div>
+      </div>
+
       <!-- Change password -->
       <div class="card">
         <h3 style="margin-top:0;">🔐 تغيير كلمة المرور</h3>

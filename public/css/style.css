@@ -587,6 +587,12 @@ table th { color: var(--text-secondary); font-weight: 700; font-size: 0.9rem; }
 .pending-flag { position: absolute; top: 0.6rem; left: 0.6rem; background: var(--warning); color: #14110a; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.72rem; font-weight: 700; }
 
 /* ============================================================
+   INSTAGRAM FEED
+   ============================================================ */
+.ig-feed { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+.ig-feed iframe { max-width: 100%; }
+
+/* ============================================================
    FOOTER
    ============================================================ */
 .footer { text-align: center; padding: 2.5rem 1rem; border-top: 1px solid var(--border-color); color: var(--text-secondary); background: var(--bg-secondary); margin-top: 3rem; }

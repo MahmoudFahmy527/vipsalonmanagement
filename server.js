@@ -10,6 +10,25 @@ const db = require('./database');
 // Seed the first admin account (hashed) from env/config on first run.
 db.ensureAdmin(config.ADMIN_USERNAME, config.ADMIN_PASSWORD);
 
+// Fire-and-forget Telegram push to the owner (free; no per-message cost).
+// Uses the salon's own bot token + chat id from settings; silent no-op if unset.
+async function sendTelegram(text, opts) {
+  const token = (opts && opts.token) || db.getSetting('telegram_bot_token');
+  const chatId = (opts && opts.chatId) || db.getSetting('telegram_chat_id');
+  if (!token || !chatId) return { ok: false, skipped: true };
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    });
+    return await r.json();
+  } catch (err) {
+    console.error('Telegram send failed:', err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 const app = express();
 app.set('trust proxy', 1);
 
@@ -426,6 +445,18 @@ app.post('/api/book', (req, res) => {
     if (result.conflict) {
       return res.status(409).json({ error: 'This time slot is already taken' });
     }
+
+    // Notify the owner on Telegram (fire-and-forget; no-op if not configured).
+    const svc = db.db.prepare('SELECT name FROM services WHERE id = ?').get(Number(service_id));
+    const lines = [
+      '🆕 حجز جديد',
+      `👤 ${customer_name}`,
+      `📞 ${customer_phone}`,
+      svc ? `✂️ ${svc.name}` : null,
+      assignedBarber ? `💈 ${assignedBarber.name}` : null,
+      `📅 ${date}  ⏰ ${formatDisplay(time_slot)}`,
+    ].filter(Boolean);
+    sendTelegram(lines.join('\n'));
 
     res.status(201).json({
       success: true,
@@ -972,6 +1003,36 @@ app.get('/api/admin/stats', isAdmin, (_req, res) => {
   }
 });
 
+// New pending bookings since a given id — drives the dashboard's live
+// in-app / browser notification (client polls this).
+app.get('/api/admin/notifications', isAdmin, (req, res) => {
+  try {
+    const sinceId = Number(req.query.sinceId) || 0;
+    const rows = db.db.prepare(
+      `SELECT b.id, b.customer_name, b.customer_phone, b.date, b.time_slot, b.created_at,
+              s.name AS service_name
+       FROM bookings b LEFT JOIN services s ON b.service_id = s.id
+       WHERE b.id > ? AND b.status = 'pending'
+       ORDER BY b.id DESC LIMIT 20`
+    ).all(sinceId);
+    const maxId = db.db.prepare('SELECT COALESCE(MAX(id),0) m FROM bookings').get().m;
+    res.json({ maxId, newBookings: rows });
+  } catch (err) {
+    console.error('GET /api/admin/notifications error:', err);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Send a Telegram test message (verifies the owner's bot token + chat id).
+app.post('/api/admin/telegram-test', isAdmin, async (req, res) => {
+  const token = (req.body && req.body.token) || db.getSetting('telegram_bot_token');
+  const chatId = (req.body && req.body.chat_id) || db.getSetting('telegram_chat_id');
+  if (!token || !chatId) return res.status(400).json({ error: 'أدخل توكن البوت ومعرّف المحادثة أولاً' });
+  const result = await sendTelegram('✅ تم ربط إشعارات الحجز بنجاح — سيصلك إشعار عند كل حجز جديد.', { token, chatId });
+  if (result && result.ok) return res.json({ success: true });
+  res.status(400).json({ error: (result && result.description) || 'فشل الإرسال — تحقق من التوكن والمعرّف' });
+});
+
 // ──────────────────────────────────────────────
 // ADMIN – REVIEWS
 // ──────────────────────────────────────────────
@@ -989,6 +1050,19 @@ app.delete('/api/admin/reviews/:id', isAdmin, (req, res) => {
 // ──────────────────────────────────────────────
 // ADMIN – SETTINGS
 // ──────────────────────────────────────────────
+
+// All settings for the admin UI (includes private keys like the Telegram token,
+// which the public /api/settings never returns). Password hash is stripped.
+app.get('/api/admin/settings', isAdmin, (_req, res) => {
+  try {
+    const all = db.getSettings();
+    delete all.admin_password_hash;
+    res.json(all);
+  } catch (err) {
+    console.error('GET /api/admin/settings error:', err);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
 
 app.put('/api/admin/settings', isAdmin, (req, res) => {
   try {

@@ -131,6 +131,10 @@ const DEFAULT_SETTINGS = {
   tiktok:           '',
   facebook:         '',
   hero_image:       '',        // URL/path; empty → gradient fallback
+  instagram_posts:  '',        // newline/comma list of IG post URLs → official embeds
+  instagram_embed:  '',        // raw widget embed code (Behold/LightWidget/…) → auto feed
+  telegram_bot_token: '',      // owner's Telegram bot token (kept out of public settings)
+  telegram_chat_id: '',        // owner's Telegram chat id
   // Salon-wide opening schedule (24h clock; close may cross midnight).
   open_hour:        '',        // '' → fall back to config/env SLOT_START_HOUR
   close_hour:       '',        // '' → fall back to config/env SLOT_END_HOUR
@@ -472,7 +476,8 @@ function getPublicSettings() {
   const all = getSettings();
   const out = {};
   for (const [k, v] of Object.entries(all)) {
-    if (k.startsWith('admin_')) continue;
+    if (k.startsWith('admin_')) continue;     // credentials
+    if (k.startsWith('telegram_')) continue;  // owner's private bot token / chat id
     out[k] = v;
   }
   return out;
