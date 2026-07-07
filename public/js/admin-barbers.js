@@ -20,6 +20,16 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  const DAY_SHORT = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+  function scheduleSummary(b) {
+    const days = String(b.work_days || '').split(',').map(s => s.trim()).filter(Boolean);
+    let out = days.length ? days.map(d => DAY_SHORT[Number(d)]).join('، ') : 'كل الأيام';
+    if (b.work_start != null && b.work_end != null) out += ` · ${b.work_start}:00–${b.work_end}:00`;
+    const off = String(b.off_dates || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (off.length) out += ` · ${off.length} إجازة`;
+    return out;
+  }
+
   // Auth guard
   fetch('/api/auth/check').then(r => r.json())
     .then(d => { if (!d.authenticated) location.href = '/login'; else load(); })
@@ -56,6 +66,7 @@
           <div>
             <h4 style="margin:0;">${esc(b.name)} ${b.is_active ? '' : '<span class="badge badge-rejected">مخفي</span>'}</h4>
             ${b.specialty ? `<div class="text-muted" style="font-size:0.85rem;">${esc(b.specialty)}</div>` : ''}
+            <div class="text-muted" style="font-size:0.8rem;">🗓️ ${scheduleSummary(b)}</div>
           </div>
         </div>
         <div class="flex gap-2" style="flex-wrap:wrap;">
@@ -79,6 +90,45 @@
     });
   }
 
+  // ---- Schedule editor state ----
+  const DAY_NAMES = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  let offDates = [];
+
+  // Build the weekday chips once.
+  const workdaysEl = document.getElementById('barber-workdays');
+  workdaysEl.innerHTML = DAY_NAMES.map((d, i) =>
+    `<button type="button" class="workday-chip active" data-day="${i}">${d}</button>`).join('');
+  workdaysEl.querySelectorAll('.workday-chip').forEach(chip =>
+    chip.addEventListener('click', () => chip.classList.toggle('active')));
+
+  function setWorkdays(csv) {
+    // Empty csv = works every day → all active.
+    const days = String(csv || '').split(',').map(s => s.trim()).filter(Boolean);
+    const all = days.length === 0;
+    workdaysEl.querySelectorAll('.workday-chip').forEach(chip => {
+      chip.classList.toggle('active', all || days.includes(chip.dataset.day));
+    });
+  }
+  function getWorkdays() {
+    const active = [...workdaysEl.querySelectorAll('.workday-chip.active')].map(c => c.dataset.day);
+    // All 7 selected → store empty (= every day).
+    return active.length === 7 ? '' : active.join(',');
+  }
+
+  function renderOffDates() {
+    const el = document.getElementById('barber-offdates');
+    el.innerHTML = offDates.map(d =>
+      `<span class="offdate-chip">${d}<button type="button" data-off="${d}">✕</button></span>`).join('');
+    el.querySelectorAll('button[data-off]').forEach(btn =>
+      btn.addEventListener('click', () => { offDates = offDates.filter(x => x !== btn.dataset.off); renderOffDates(); }));
+  }
+  document.getElementById('add-offdate').addEventListener('click', () => {
+    const input = document.getElementById('barber-offdate');
+    const v = input.value;
+    if (v && !offDates.includes(v)) { offDates.push(v); offDates.sort(); renderOffDates(); }
+    input.value = '';
+  });
+
   // Modal
   function openModal(b) {
     document.getElementById('modal-title').textContent = b ? 'تعديل حلاق' : 'إضافة حلاق';
@@ -86,6 +136,11 @@
     document.getElementById('barber-name').value = b ? b.name : '';
     document.getElementById('barber-specialty').value = b ? (b.specialty || '') : '';
     document.getElementById('barber-sort').value = b ? (b.sort_order || 0) : 0;
+    document.getElementById('barber-start').value = (b && b.work_start != null) ? b.work_start : '';
+    document.getElementById('barber-end').value = (b && b.work_end != null) ? b.work_end : '';
+    setWorkdays(b ? b.work_days : '');
+    offDates = b && b.off_dates ? String(b.off_dates).split(',').map(s => s.trim()).filter(Boolean) : [];
+    renderOffDates();
     modal.classList.remove('hidden');
   }
   function closeModal() { modal.classList.add('hidden'); }
@@ -100,9 +155,17 @@
     const name = document.getElementById('barber-name').value.trim();
     const specialty = document.getElementById('barber-specialty').value.trim();
     const sort_order = Number(document.getElementById('barber-sort').value) || 0;
+    const startV = document.getElementById('barber-start').value;
+    const endV = document.getElementById('barber-end').value;
     if (!name) { showToast('الاسم مطلوب', 'error'); return; }
 
-    const body = JSON.stringify({ name, specialty, sort_order });
+    const body = JSON.stringify({
+      name, specialty, sort_order,
+      work_days: getWorkdays(),
+      off_dates: offDates.join(','),
+      work_start: startV === '' ? null : Number(startV),
+      work_end: endV === '' ? null : Number(endV),
+    });
     const url = id ? `/api/admin/barbers/${id}` : '/api/admin/barbers';
     const method = id ? 'PUT' : 'POST';
     try {

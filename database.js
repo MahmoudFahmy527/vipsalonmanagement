@@ -97,6 +97,13 @@ function ensureColumn(table, column, definition) {
 ensureColumn('bookings', 'customer_token', 'TEXT');
 // Which barber the booking is for (null = salon doesn't use barbers).
 ensureColumn('bookings', 'barber_id', 'INTEGER');
+// Per-barber schedule. work_days = comma list of weekday numbers (0=Sun..6=Sat),
+// empty = every day. off_dates = comma list of YYYY-MM-DD the barber is off.
+// work_start/work_end = optional per-barber hours that override the salon window.
+ensureColumn('barbers', 'work_days', "TEXT DEFAULT ''");
+ensureColumn('barbers', 'off_dates', "TEXT DEFAULT ''");
+ensureColumn('barbers', 'work_start', 'INTEGER');
+ensureColumn('barbers', 'work_end', 'INTEGER');
 // Gallery moderation: admin uploads are 'approved'; customer submissions land
 // as 'pending' until the owner approves them.
 ensureColumn('gallery', 'status', "TEXT DEFAULT 'approved'");
@@ -309,17 +316,47 @@ function getAllBarbers() {
   return db.prepare('SELECT * FROM barbers ORDER BY sort_order, id').all();
 }
 
-function createBarber({ name, specialty, sort_order }) {
+function getBarber(id) {
+  return db.prepare('SELECT * FROM barbers WHERE id = ?').get(id);
+}
+
+/**
+ * Is a barber working on a given date? Considers their days-off list and
+ * their working weekdays (empty work_days = every day).
+ */
+function barberWorksOn(barber, dateStr) {
+  if (!barber) return false;
+  const off = String(barber.off_dates || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (off.includes(dateStr)) return false;
+  const days = String(barber.work_days || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (days.length) {
+    const dow = new Date(dateStr + 'T00:00:00').getDay(); // 0=Sun..6=Sat
+    if (!days.includes(String(dow))) return false;
+  }
+  return true;
+}
+
+function normHour(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end }) {
   const info = db
-    .prepare('INSERT INTO barbers (name, specialty, sort_order, created_at) VALUES (?, ?, ?, ?)')
-    .run(name, specialty || '', sort_order || 0, new Date().toISOString());
+    .prepare(`INSERT INTO barbers (name, specialty, sort_order, work_days, off_dates, work_start, work_end, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(name, specialty || '', sort_order || 0, work_days || '', off_dates || '',
+         normHour(work_start), normHour(work_end), new Date().toISOString());
   return db.prepare('SELECT * FROM barbers WHERE id = ?').get(info.lastInsertRowid);
 }
 
-function updateBarber(id, { name, specialty, sort_order }) {
+function updateBarber(id, { name, specialty, sort_order, work_days, off_dates, work_start, work_end }) {
   return db
-    .prepare('UPDATE barbers SET name = ?, specialty = ?, sort_order = ? WHERE id = ?')
-    .run(name, specialty || '', sort_order || 0, id);
+    .prepare(`UPDATE barbers SET name = ?, specialty = ?, sort_order = ?,
+              work_days = ?, off_dates = ?, work_start = ?, work_end = ? WHERE id = ?`)
+    .run(name, specialty || '', sort_order || 0, work_days || '', off_dates || '',
+         normHour(work_start), normHour(work_end), id);
 }
 
 function toggleBarber(id) {
@@ -493,6 +530,21 @@ const bookAtomic = db.transaction(({ overlaps, booking }) => {
   return { conflict: false, booking: created };
 });
 
+/**
+ * "Any barber" booking: try each candidate barber in order and book the first
+ * one that's free for the slot — all inside a single transaction so two
+ * requests can't grab the same barber. `hasClash(barberId)` is supplied by the
+ * caller (uses the same overlap maths as a normal booking).
+ */
+const assignAndBook = db.transaction(({ candidates, hasClash, buildBooking }) => {
+  for (const b of candidates) {
+    if (!hasClash(b.id)) {
+      return { conflict: false, booking: createBooking(buildBooking(b.id)), barber: b };
+    }
+  }
+  return { conflict: true };
+});
+
 // ──────────────────────────────────────────────
 // Exports
 // ──────────────────────────────────────────────
@@ -518,6 +570,8 @@ module.exports = {
   // Barbers
   getActiveBarbers,
   getAllBarbers,
+  getBarber,
+  barberWorksOn,
   createBarber,
   updateBarber,
   toggleBarber,
@@ -546,4 +600,5 @@ module.exports = {
   verifyPassword,
   // Atomic booking
   bookAtomic,
+  assignAndBook,
 };

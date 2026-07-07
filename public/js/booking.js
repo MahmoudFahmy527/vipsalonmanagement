@@ -255,17 +255,29 @@ async function loadBarbers() {
 
 function renderBarbers() {
   const grid = document.getElementById('barbersGrid');
-  grid.innerHTML = state.barbers.map(b => `
+  // "Any available barber" first, then each barber.
+  const anyCard = `
+    <div class="service-select-card" data-barber-id="any" onclick="selectBarber('any')">
+      <div class="barber-avatar">✨</div>
+      <h3>أي حلاق متاح</h3>
+      <div class="text-muted" style="font-size:0.88rem;">نحجز لك أول حلاق متاح</div>
+    </div>`;
+  const cards = state.barbers.map(b => `
     <div class="service-select-card" data-barber-id="${b.id}" onclick="selectBarber(${b.id})">
-      <div class="barber-avatar">${(b.name || '?').trim().charAt(0)}</div>
+      <div class="barber-avatar">${escapeHtml((b.name || '?').trim().charAt(0))}</div>
       <h3>${escapeHtml(b.name)}</h3>
       ${b.specialty ? `<div class="text-muted" style="font-size:0.88rem;">${escapeHtml(b.specialty)}</div>` : ''}
     </div>
   `).join('');
+  grid.innerHTML = anyCard + cards;
 }
 
 function selectBarber(id) {
-  state.selectedBarber = state.barbers.find(b => b.id === id) || null;
+  if (id === 'any') {
+    state.selectedBarber = { id: 'any', name: 'أي حلاق متاح' };
+  } else {
+    state.selectedBarber = state.barbers.find(b => b.id === id) || null;
+  }
   document.querySelectorAll('#barbersGrid .service-select-card').forEach(c => c.classList.remove('selected'));
   const card = document.querySelector(`#barbersGrid .service-select-card[data-barber-id="${id}"]`);
   if (card) card.classList.add('selected');
@@ -358,7 +370,7 @@ function renderSlots(slots) {
   const grid = document.getElementById('slotsGrid');
 
   if (!slots.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📅</div><h3>لا توجد مواعيد متاحة</h3></div>';
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📅</div><h3>لا توجد مواعيد متاحة في هذا اليوم</h3><p>جرّب تاريخاً آخر أو حلاقاً آخر</p></div>';
     return;
   }
 
@@ -468,6 +480,10 @@ async function submitBooking(e) {
     }
 
     const result = await res.json();
+    // For "any barber", show the barber the system actually assigned.
+    if (state.selectedBarber && state.selectedBarber.id === 'any' && result.barber_name) {
+      state.selectedBarber = { id: 'any', name: result.barber_name };
+    }
     showToast('تم إرسال الحجز بنجاح! ✅', 'success');
     showConfirmation(name, phone);
   } catch (err) {

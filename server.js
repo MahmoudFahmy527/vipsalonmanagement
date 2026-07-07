@@ -91,11 +91,10 @@ function isAdmin(req, res, next) {
  * to SLOT_END_HOUR (crossing midnight when end < start).
  * Returns e.g. ['12:00','13:00',…,'23:00','00:00','01:00','02:00']
  */
-function generateSlotTimes() {
+function generateSlotTimesFor(start, end) {
   const slots = [];
-  const start = config.SLOT_START_HOUR; // 12
-  const end = config.SLOT_END_HOUR;     // 3
-  const step = config.SLOT_DURATION;     // 60 minutes
+  const step = config.SLOT_DURATION; // 60 minutes
+  if (start === end) return slots;
 
   let hour = start;
   // Walk forward in 1-hour increments. The "end" hour itself is NOT a bookable
@@ -105,12 +104,30 @@ function generateSlotTimes() {
     slots.push(`${hh}:00`);
     hour += step / 60; // advance by 1 hour
     const current = hour % 24;
-    // Stop once we've reached (but not passed) the end hour on the "other side"
     if (current === end) break;
-    // Safety: if we've gone full circle, break to avoid infinite loop
-    if (slots.length >= 24) break;
+    if (slots.length >= 24) break; // safety: avoid infinite loop
   }
   return slots;
+}
+
+// Salon-wide default window.
+function generateSlotTimes() {
+  return generateSlotTimesFor(config.SLOT_START_HOUR, config.SLOT_END_HOUR);
+}
+
+// A barber's own window (falls back to the salon window).
+function barberWindow(barber) {
+  const start = (barber && barber.work_start != null) ? barber.work_start : config.SLOT_START_HOUR;
+  const end = (barber && barber.work_end != null) ? barber.work_end : config.SLOT_END_HOUR;
+  return { start, end };
+}
+
+// Does a booking overlap the [slotStart, slotStart+DURATION) window and hold it?
+function bookingBlocks(b, slotStart) {
+  const bStart = slotToMinutes(b.time_slot);
+  const bEnd = bStart + (b.duration || 60);
+  const slotEnd = slotStart + config.SLOT_DURATION;
+  return slotStart < bEnd && bStart < slotEnd && (b.status === 'accepted' || b.status === 'reserved');
 }
 
 /**
@@ -236,47 +253,68 @@ app.get('/api/barbers', (_req, res) => {
   }
 });
 
-// Time-slot availability for a date (optionally scoped to one barber)
+// Time-slot availability for a date.
+//  ?barber=<id>  → that barber's own calendar (honours their schedule/hours)
+//  ?barber=any   → available if ANY working barber is free at that time
+//  (no param)    → salon-wide single calendar (legacy)
 app.get('/api/slots/:date', (req, res) => {
   try {
     const { date } = req.params; // YYYY-MM-DD
-    const barberId = req.query.barber; // optional → per-barber calendar
+    const barberId = req.query.barber;
 
-    // Bookings may live on `date` itself, or on the *next* calendar day
-    // for after-midnight slots (00:xx, 01:xx, 02:xx).
+    // ---- "Any available barber" ----
+    if (barberId === 'any') {
+      const barbers = db.getActiveBarbers().filter((b) => db.barberWorksOn(b, date));
+      if (!barbers.length) return res.json([]); // no barber works this day
+
+      const perBarber = barbers.map((b) => {
+        const { start, end } = barberWindow(b);
+        return {
+          times: new Set(generateSlotTimesFor(start, end)),
+          bookings: db.getSlotsByDate(date, b.id),
+        };
+      });
+
+      // Union of every working barber's slot times, ordered.
+      const allTimes = new Set();
+      perBarber.forEach((pb) => pb.times.forEach((t) => allTimes.add(t)));
+      const ordered = [...allTimes].sort((a, b) => slotToMinutes(a) - slotToMinutes(b));
+
+      const result = ordered.map((time) => {
+        const slotStart = slotToMinutes(time);
+        // Available if at least one barber works this time AND is free.
+        const status = perBarber.some(
+          (pb) => pb.times.has(time) && !pb.bookings.some((bk) => bookingBlocks(bk, slotStart))
+        ) ? 'available' : 'taken';
+        return { time, display: formatDisplay(time), status };
+      });
+      return res.json(result);
+    }
+
+    // ---- A specific barber ----
+    let slotTimes = generateSlotTimes();
+    if (barberId) {
+      const barber = db.getBarber(Number(barberId));
+      if (!barber || !db.barberWorksOn(barber, date)) return res.json([]); // day off
+      const { start, end } = barberWindow(barber);
+      slotTimes = generateSlotTimesFor(start, end);
+    }
+
     const bookings = db.getSlotsByDate(date, barberId);
-
-    const slotTimes = generateSlotTimes();
 
     const result = slotTimes.map((time) => {
       const slotStart = slotToMinutes(time);
-
-      // Determine the status of this slot by checking all bookings
       let status = 'available';
-
       for (const b of bookings) {
         const bStart = slotToMinutes(b.time_slot);
         const bEnd = bStart + (b.duration || 60);
-
-        const slotEnd = slotStart + (config.SLOT_DURATION);
-
-        // Two ranges overlap when one starts before the other ends and vice-versa
+        const slotEnd = slotStart + config.SLOT_DURATION;
         if (slotStart < bEnd && bStart < slotEnd) {
-          if (b.status === 'accepted' || b.status === 'reserved') {
-            status = 'taken';
-            break; // taken takes precedence
-          }
-          if (b.status === 'pending') {
-            status = 'pending'; // keep checking—taken would override
-          }
+          if (b.status === 'accepted' || b.status === 'reserved') { status = 'taken'; break; }
+          if (b.status === 'pending') status = 'pending';
         }
       }
-
-      return {
-        time,
-        display: formatDisplay(time),
-        status,
-      };
+      return { time, display: formatDisplay(time), status };
     });
 
     res.json(result);
@@ -300,39 +338,60 @@ app.post('/api/book', (req, res) => {
     }
 
     const slotStart = slotToMinutes(time_slot);
-    const slotEnd = slotStart + config.SLOT_DURATION;
 
-    // Availability check + insert run in one transaction so two
-    // simultaneous requests can't both grab the same slot.
-    const result = db.bookAtomic({
-      overlaps: () => {
-        // Only the chosen barber's bookings block this slot (per-barber calendar).
-        const bookings = db.getSlotsByDate(date, barber_id);
-        return bookings.some((b) => {
-          const bStart = slotToMinutes(b.time_slot);
-          const bEnd = bStart + (b.duration || 60);
-          const clash = slotStart < bEnd && bStart < slotEnd;
-          return clash && (b.status === 'accepted' || b.status === 'reserved');
-        });
-      },
-      booking: {
-        customer_name,
-        customer_phone,
-        service_id: Number(service_id),
-        barber_id: barber_id ? Number(barber_id) : null,
-        date,
-        time_slot,
-        duration: config.SLOT_DURATION,
-        status: 'pending',
-        customer_token: customer_token || null,
-      },
-    });
+    const hasClash = (barberId) =>
+      db.getSlotsByDate(date, barberId).some((b) => bookingBlocks(b, slotStart));
+
+    const baseBooking = {
+      customer_name,
+      customer_phone,
+      service_id: Number(service_id),
+      date,
+      time_slot,
+      duration: config.SLOT_DURATION,
+      status: 'pending',
+      customer_token: customer_token || null,
+    };
+
+    let result;
+    let assignedBarber = null;
+
+    if (barber_id === 'any') {
+      // Assign the first working barber who is free for this slot (atomic).
+      const candidates = db.getActiveBarbers().filter((b) => db.barberWorksOn(b, date));
+      if (!candidates.length) {
+        return res.status(409).json({ error: 'لا يوجد حلاق متاح في هذا الموعد' });
+      }
+      result = db.assignAndBook({
+        candidates,
+        hasClash,
+        buildBooking: (barberId) => ({ ...baseBooking, barber_id: barberId }),
+      });
+      if (!result.conflict) assignedBarber = result.barber;
+    } else {
+      // Specific barber (or none). Validate the barber works that day.
+      if (barber_id) {
+        const barber = db.getBarber(Number(barber_id));
+        if (!barber || !db.barberWorksOn(barber, date)) {
+          return res.status(409).json({ error: 'الحلاق غير متاح في هذا اليوم' });
+        }
+        assignedBarber = barber;
+      }
+      result = db.bookAtomic({
+        overlaps: () => hasClash(barber_id || null),
+        booking: { ...baseBooking, barber_id: barber_id ? Number(barber_id) : null },
+      });
+    }
 
     if (result.conflict) {
       return res.status(409).json({ error: 'This time slot is already taken' });
     }
 
-    res.status(201).json({ success: true, booking: result.booking });
+    res.status(201).json({
+      success: true,
+      booking: result.booking,
+      barber_name: assignedBarber ? assignedBarber.name : null,
+    });
   } catch (err) {
     console.error('POST /api/book error:', err);
     res.status(500).json({ error: 'Failed to create booking' });
@@ -781,9 +840,9 @@ app.get('/api/admin/barbers', isAdmin, (_req, res) => {
 
 app.post('/api/admin/barbers', isAdmin, (req, res) => {
   try {
-    const { name, specialty, sort_order } = req.body;
+    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    const barber = db.createBarber({ name, specialty, sort_order });
+    const barber = db.createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end });
     res.status(201).json({ success: true, barber });
   } catch (err) {
     console.error('POST /api/admin/barbers error:', err);
@@ -793,9 +852,9 @@ app.post('/api/admin/barbers', isAdmin, (req, res) => {
 
 app.put('/api/admin/barbers/:id', isAdmin, (req, res) => {
   try {
-    const { name, specialty, sort_order } = req.body;
+    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    db.updateBarber(Number(req.params.id), { name, specialty, sort_order });
+    db.updateBarber(Number(req.params.id), { name, specialty, sort_order, work_days, off_dates, work_start, work_end });
     res.json({ success: true });
   } catch (err) {
     console.error('PUT /api/admin/barbers/:id error:', err);

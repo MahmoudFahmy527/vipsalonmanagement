@@ -68,6 +68,32 @@
           <label class="form-label">التخصص (اختياري)</label>
           <input class="form-input" id="barber-specialty" placeholder="مثال: قص وتحديد ذقن">
         </div>
+
+        <div class="form-group">
+          <label class="form-label">أيام العمل</label>
+          <div class="workdays" id="barber-workdays"></div>
+          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">الأيام التي يعمل بها هذا الحلاق.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">ساعات العمل (اختياري)</label>
+          <div class="flex gap-2" style="align-items:center;">
+            <input class="form-input" id="barber-start" type="number" min="0" max="23" placeholder="من (افتراضي الصالون)" style="width:100%;">
+            <span class="text-muted">—</span>
+            <input class="form-input" id="barber-end" type="number" min="0" max="23" placeholder="إلى" style="width:100%;">
+          </div>
+          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">اتركها فارغة لاستخدام مواعيد الصالون. مثال: 12 إلى 22 (نظام 24 ساعة).</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">أيام الإجازة (تواريخ محددة)</label>
+          <div class="flex gap-2" style="align-items:center;">
+            <input class="form-input" id="barber-offdate" type="date" style="width:100%;color-scheme:dark;">
+            <button type="button" class="btn btn-outline btn-sm" id="add-offdate">إضافة</button>
+          </div>
+          <div class="offdates-list" id="barber-offdates" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;"></div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">الترتيب (اختياري)</label>
           <input class="form-input" id="barber-sort" type="number" value="0">
