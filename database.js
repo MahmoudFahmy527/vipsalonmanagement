@@ -71,6 +71,26 @@ db.exec(`
 `);
 
 // ──────────────────────────────────────────────
+// Lightweight migrations — add columns to existing
+// databases without dropping data.
+// ──────────────────────────────────────────────
+
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+// Per-device customer token → lets a returning customer be recognised and see
+// their own bookings, without accounts or exposing phone numbers publicly.
+ensureColumn('bookings', 'customer_token', 'TEXT');
+// Gallery moderation: admin uploads are 'approved'; customer submissions land
+// as 'pending' until the owner approves them.
+ensureColumn('gallery', 'status', "TEXT DEFAULT 'approved'");
+ensureColumn('gallery', 'submitter_name', 'TEXT');
+
+// ──────────────────────────────────────────────
 // Default (white-label) settings — seeded once.
 // Every one of these is editable from the admin
 // panel / setup wizard, so a new salon is branded
@@ -120,10 +140,10 @@ function getSlotsByDate(date) {
 /**
  * Insert a new booking and return the created row.
  */
-function createBooking({ customer_name, customer_phone, service_id, date, time_slot, duration, status, note }) {
+function createBooking({ customer_name, customer_phone, service_id, date, time_slot, duration, status, note, customer_token }) {
   const stmt = db.prepare(
-    `INSERT INTO bookings (customer_name, customer_phone, service_id, date, time_slot, duration, status, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO bookings (customer_name, customer_phone, service_id, date, time_slot, duration, status, note, customer_token, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const info = stmt.run(
     customer_name,
@@ -134,9 +154,42 @@ function createBooking({ customer_name, customer_phone, service_id, date, time_s
     duration || 60,
     status || 'pending',
     note || null,
+    customer_token || null,
     new Date().toISOString()
   );
   return db.prepare('SELECT * FROM bookings WHERE id = ?').get(info.lastInsertRowid);
+}
+
+/**
+ * All bookings tied to a device token (a customer's "my bookings"),
+ * newest appointment first, with the service name joined in.
+ */
+function getBookingsByToken(token) {
+  return db
+    .prepare(
+      `SELECT b.id, b.customer_name, b.date, b.time_slot, b.duration, b.status, b.created_at,
+              s.name AS service_name, s.price AS service_price
+       FROM bookings b
+       LEFT JOIN services s ON b.service_id = s.id
+       WHERE b.customer_token = ?
+       ORDER BY b.date DESC, b.time_slot DESC`
+    )
+    .all(token);
+}
+
+/**
+ * Has this phone booked before the given booking id? Used to flag
+ * returning customers for the admin. Ignores rejected bookings.
+ */
+function isReturningCustomer(phone, excludeId) {
+  if (!phone || phone === '-') return false;
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM bookings
+       WHERE customer_phone = ? AND id < ? AND status != 'rejected'`
+    )
+    .get(phone, excludeId || Number.MAX_SAFE_INTEGER);
+  return row.n > 0;
 }
 
 /**
@@ -166,17 +219,43 @@ function deleteBooking(id) {
 // Gallery helpers
 // ──────────────────────────────────────────────
 
+// Admin view — every item, pending first so submissions are easy to moderate.
 function getAllGallery() {
-  return db.prepare('SELECT * FROM gallery ORDER BY created_at DESC').all();
+  return db
+    .prepare("SELECT * FROM gallery ORDER BY (status = 'pending') DESC, created_at DESC")
+    .all();
 }
 
-function addGalleryItem({ filename, original_name, type, description }) {
+// Public view — only approved items.
+function getPublicGallery() {
+  return db
+    .prepare("SELECT * FROM gallery WHERE status = 'approved' ORDER BY created_at DESC")
+    .all();
+}
+
+function countPendingGallery() {
+  return db.prepare("SELECT COUNT(*) AS n FROM gallery WHERE status = 'pending'").get().n;
+}
+
+function addGalleryItem({ filename, original_name, type, description, status, submitter_name }) {
   const stmt = db.prepare(
-    `INSERT INTO gallery (filename, original_name, type, description, created_at)
-     VALUES (?, ?, ?, ?, ?)`
+    `INSERT INTO gallery (filename, original_name, type, description, status, submitter_name, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
-  const info = stmt.run(filename, original_name || '', type, description || '', new Date().toISOString());
+  const info = stmt.run(
+    filename,
+    original_name || '',
+    type,
+    description || '',
+    status || 'approved',
+    submitter_name || null,
+    new Date().toISOString()
+  );
   return db.prepare('SELECT * FROM gallery WHERE id = ?').get(info.lastInsertRowid);
+}
+
+function approveGalleryItem(id) {
+  return db.prepare("UPDATE gallery SET status = 'approved' WHERE id = ?").run(id);
 }
 
 function updateGalleryDescription(id, description) {
@@ -363,12 +442,17 @@ module.exports = {
   // Bookings
   getSlotsByDate,
   createBooking,
+  getBookingsByToken,
+  isReturningCustomer,
   updateBookingStatus,
   updateBookingTime,
   deleteBooking,
   // Gallery
   getAllGallery,
+  getPublicGallery,
+  countPendingGallery,
   addGalleryItem,
+  approveGalleryItem,
   updateGalleryDescription,
   deleteGalleryItem,
   // Services

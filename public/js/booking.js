@@ -17,6 +17,85 @@ const state = {
 // Currency comes from salon settings (brand.js); fallback to EGP.
 const cur = () => (window.getCurrency ? window.getCurrency() : 'ج.م');
 
+/* ---------- Device memory (returning-customer recognition) ----------
+   We keep a small record in the browser: the customer's name, phone and a
+   random private token. The token ties their bookings together so we can
+   greet them and show "my bookings" — no accounts, no passwords, and (unlike
+   an IP address) it's unique to them and stable across visits on this device. */
+const DEVICE_KEY = 'salon_customer';
+
+function getDevice() {
+  try { return JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null'); } catch (_) { return null; }
+}
+function newToken() {
+  if (window.crypto && crypto.randomUUID) return 'c_' + crypto.randomUUID();
+  return 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function saveDevice(name, phone) {
+  const d = getDevice() || {};
+  d.name = name;
+  d.phone = phone;
+  if (!d.token) d.token = newToken();
+  try { localStorage.setItem(DEVICE_KEY, JSON.stringify(d)); } catch (_) {}
+  return d;
+}
+function forgetDevice() {
+  try { localStorage.removeItem(DEVICE_KEY); } catch (_) {}
+  location.reload();
+}
+window.forgetDevice = forgetDevice;
+
+const STATUS_LABELS_AR = { pending: 'قيد المراجعة', accepted: 'مؤكد', rejected: 'مرفوض', reserved: 'محجوز' };
+const STATUS_CLASS = { pending: 'badge-pending', accepted: 'badge-accepted', rejected: 'badge-rejected', reserved: 'badge-accepted' };
+
+/* Greet a recognised customer, prefill their details, show their bookings. */
+function initReturningCustomer() {
+  const d = getDevice();
+  if (!d || !d.token) return;
+
+  // Prefill the details form
+  const nameEl = document.getElementById('customerName');
+  const phoneEl = document.getElementById('customerPhone');
+  if (nameEl && d.name) nameEl.value = d.name;
+  if (phoneEl && d.phone) phoneEl.value = d.phone;
+
+  // Welcome-back banner
+  const banner = document.getElementById('welcomeBack');
+  if (banner && d.name) {
+    banner.querySelector('.wb-name').textContent = d.name;
+    banner.hidden = false;
+  }
+
+  loadMyBookings(d.token);
+}
+
+async function loadMyBookings(token) {
+  const panel = document.getElementById('myBookings');
+  if (!panel) return;
+  try {
+    const res = await fetch(`/api/my-bookings?token=${encodeURIComponent(token)}`);
+    const list = await res.json();
+    if (!Array.isArray(list) || !list.length) return;
+
+    const items = list.map((b) => {
+      const d = new Date(b.date + 'T00:00:00');
+      const dateLabel = `${DAY_NAMES_AR[d.getDay()]} ${d.getDate()} ${MONTH_NAMES_AR[d.getMonth()]}`;
+      const status = STATUS_LABELS_AR[b.status] || b.status;
+      const badge = STATUS_CLASS[b.status] || 'badge';
+      return `<div class="mybk-row">
+        <div>
+          <strong>${b.service_name || 'خدمة'}</strong>
+          <div class="text-muted" style="font-size:0.85rem;">${dateLabel} — ${formatTime12(b.time_slot)}</div>
+        </div>
+        <span class="badge ${badge}">${status}</span>
+      </div>`;
+    }).join('');
+
+    panel.querySelector('.mybk-list').innerHTML = items;
+    panel.hidden = false;
+  } catch (_) { /* silent */ }
+}
+
 /* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
@@ -288,6 +367,9 @@ async function submitBooking(e) {
   btn.disabled = true;
   btn.textContent = 'جاري الإرسال...';
 
+  // Remember this customer on the device and tie the booking to their token.
+  const device = saveDevice(name, phone);
+
   try {
     const res = await fetch('/api/book', {
       method: 'POST',
@@ -298,6 +380,7 @@ async function submitBooking(e) {
         service_id: state.selectedService.id || state.selectedService._id,
         date: state.selectedDate,
         time_slot: state.selectedSlot,
+        customer_token: device.token,
       }),
     });
 
@@ -387,4 +470,7 @@ function buildWhatsappButton(name, phone, dateLabel) {
 }
 
 /* ---------- Initialize ---------- */
-document.addEventListener('DOMContentLoaded', loadServices);
+document.addEventListener('DOMContentLoaded', () => {
+  loadServices();
+  initReturningCustomer();
+});

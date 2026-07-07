@@ -206,7 +206,7 @@
     galleryGrid.innerHTML = '<div class="flex-center mt-3" style="grid-column:1/-1;"><div class="spinner"></div></div>';
 
     try {
-      const res = await fetch('/api/gallery');
+      const res = await fetch('/api/admin/gallery');
       if (!res.ok) throw new Error('فشل في تحميل المعرض');
       const data = await res.json();
       const items = data.items || data || [];
@@ -225,30 +225,55 @@
     galleryGrid.innerHTML = '';
 
     items.forEach(item => {
-      const isVideo = item.type === 'video' || (item.url && (item.url.endsWith('.mp4') || item.url.endsWith('.webm') || item.url.endsWith('.mov')));
+      const src = `/uploads/${item.filename}`;
+      const isVideo = item.type === 'video';
+      const isPending = item.status === 'pending';
       const card = document.createElement('div');
-      card.className = 'card gallery-item';
+      card.className = 'card gallery-item' + (isPending ? ' pending' : '');
 
       let mediaHTML = '';
       if (isVideo) {
         mediaHTML = `
-          <video class="gallery-thumb" src="${item.url}" preload="metadata" muted></video>
+          <video class="gallery-thumb" src="${src}" preload="metadata" muted></video>
           <span class="media-type-badge">🎬 فيديو</span>
         `;
       } else {
-        mediaHTML = `<img class="gallery-thumb" src="${item.url || item.thumbnail}" alt="${item.description || ''}" loading="lazy">`;
+        mediaHTML = `<img class="gallery-thumb" src="${src}" alt="${item.description || ''}" loading="lazy">`;
       }
+      if (isPending) mediaHTML += '<span class="pending-flag">بانتظار المراجعة</span>';
+
+      const submitter = item.submitter_name ? `<p class="text-muted" style="font-size:0.8rem;margin:0 0 0.3rem;">أرسلها: ${item.submitter_name}</p>` : '';
+      const approveBtn = isPending
+        ? `<button class="btn btn-success btn-sm" data-approve-id="${item.id}">✅ نشر</button>`
+        : '';
 
       card.innerHTML = `
         ${mediaHTML}
         <div class="gallery-item-body">
+          ${submitter}
           <p class="gallery-item-desc">${item.description || 'بدون وصف'}</p>
           <div class="gallery-item-actions">
+            ${approveBtn}
             <button class="btn btn-outline btn-sm" data-edit-id="${item.id}">✏️ تعديل الوصف</button>
-            <button class="btn btn-danger btn-sm" data-delete-id="${item.id}">🗑️ حذف</button>
+            <button class="btn btn-danger btn-sm" data-delete-id="${item.id}">🗑️ ${isPending ? 'رفض' : 'حذف'}</button>
           </div>
         </div>
       `;
+
+      // Approve handler (pending submissions only)
+      const approveEl = card.querySelector('[data-approve-id]');
+      if (approveEl) {
+        approveEl.addEventListener('click', async () => {
+          try {
+            const res = await fetch(`/api/admin/gallery/${item.id}/approve`, { method: 'PUT' });
+            if (!res.ok) throw new Error('فشل في نشر الصورة');
+            showToast('تم نشر الصورة');
+            loadGallery();
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        });
+      }
 
       // Edit description handler
       card.querySelector('[data-edit-id]').addEventListener('click', () => {

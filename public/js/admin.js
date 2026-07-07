@@ -193,6 +193,14 @@
       const statusLabel = STATUS_LABELS[booking.status] || booking.status;
       const badgeClass = `badge badge-${booking.status}`;
 
+      // New vs returning tag (only for real customer bookings, not manual reserves)
+      let customerTag = '';
+      if (phone && phone !== '-') {
+        customerTag = booking.is_returning
+          ? '<span class="customer-tag returning">عميل عائد</span>'
+          : '<span class="customer-tag new">جديد</span>';
+      }
+
       let actionsHTML = '';
 
       if (booking.status === 'pending') {
@@ -220,7 +228,7 @@
 
       card.innerHTML = `
         <div class="booking-info">
-          <h4>${customerName}</h4>
+          <h4>${customerName}${customerTag}</h4>
           ${phone && phone !== '-' ? `<a class="booking-phone" href="${waLink(phone)}" target="_blank" rel="noopener" title="مراسلة عبر واتساب" dir="ltr">💬 ${phone}</a>` : ''}
           ${note ? `<p class="note-text">📝 ${note}</p>` : ''}
         </div>

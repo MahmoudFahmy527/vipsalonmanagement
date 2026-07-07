@@ -273,7 +273,7 @@ app.get('/api/slots/:date', (req, res) => {
 // Create a booking (public)
 app.post('/api/book', (req, res) => {
   try {
-    const { customer_name, customer_phone, service_id, date, time_slot } = req.body;
+    const { customer_name, customer_phone, service_id, date, time_slot, customer_token } = req.body;
 
     // Validation
     if (!customer_name || !customer_phone || !date || !time_slot) {
@@ -306,6 +306,7 @@ app.post('/api/book', (req, res) => {
         time_slot,
         duration: config.SLOT_DURATION,
         status: 'pending',
+        customer_token: customer_token || null,
       },
     });
 
@@ -320,15 +321,58 @@ app.post('/api/book', (req, res) => {
   }
 });
 
-// Gallery (public)
+// A customer's own bookings, looked up by their private device token.
+// The token is a random id stored only in that customer's browser, so this
+// never exposes anyone else's data (and no phone-number enumeration).
+app.get('/api/my-bookings', (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.json([]);
+    res.json(db.getBookingsByToken(String(token)));
+  } catch (err) {
+    console.error('GET /api/my-bookings error:', err);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+// Gallery (public — approved items only)
 app.get('/api/gallery', (_req, res) => {
   try {
-    const items = db.getAllGallery();
-    res.json(items);
+    res.json(db.getPublicGallery());
   } catch (err) {
     console.error('GET /api/gallery error:', err);
     res.status(500).json({ error: 'Failed to fetch gallery' });
   }
+});
+
+// Customer photo submission → lands in the moderation queue (status 'pending').
+// Images only, one per request; the admin approves before it shows publicly.
+app.post('/api/gallery/submit', (req, res) => {
+  upload.single('media')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      if (!req.file.mimetype.startsWith('image/')) {
+        // remove the rejected upload from disk
+        fs.existsSync(req.file.path) && fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Only images can be submitted' });
+      }
+      const item = db.addGalleryItem({
+        filename: req.file.filename,
+        original_name: req.file.originalname,
+        type: 'image',
+        description: (req.body.description || '').slice(0, 200),
+        submitter_name: (req.body.submitter_name || '').slice(0, 60),
+        status: 'pending',
+      });
+      res.status(201).json({ success: true, id: item.id });
+    } catch (innerErr) {
+      console.error('POST /api/gallery/submit error:', innerErr);
+      res.status(500).json({ error: 'Failed to submit photo' });
+    }
+  });
 });
 
 // Reviews (public)
@@ -484,6 +528,10 @@ app.get('/api/admin/bookings/:date', isAdmin, (req, res) => {
          ORDER BY b.time_slot`
       )
       .all(date);
+    // Flag returning customers (booked before under the same phone).
+    for (const b of rows) {
+      b.is_returning = db.isReturningCustomer(b.customer_phone, b.id);
+    }
     res.json(rows);
   } catch (err) {
     console.error('GET /api/admin/bookings error:', err);
@@ -558,6 +606,16 @@ app.delete('/api/admin/bookings/:id', isAdmin, (req, res) => {
 // ADMIN – GALLERY
 // ──────────────────────────────────────────────
 
+// All gallery items incl. pending customer submissions (pending first).
+app.get('/api/admin/gallery', isAdmin, (_req, res) => {
+  try {
+    res.json(db.getAllGallery());
+  } catch (err) {
+    console.error('GET /api/admin/gallery error:', err);
+    res.status(500).json({ error: 'Failed to fetch gallery' });
+  }
+});
+
 app.post('/api/admin/gallery', isAdmin, (req, res) => {
   upload.single('media')(req, res, (err) => {
     if (err) {
@@ -593,6 +651,17 @@ app.put('/api/admin/gallery/:id', isAdmin, (req, res) => {
   } catch (err) {
     console.error('PUT /api/admin/gallery/:id error:', err);
     res.status(500).json({ error: 'Failed to update gallery item' });
+  }
+});
+
+// Approve a pending customer submission → becomes publicly visible.
+app.put('/api/admin/gallery/:id/approve', isAdmin, (req, res) => {
+  try {
+    db.approveGalleryItem(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /api/admin/gallery/:id/approve error:', err);
+    res.status(500).json({ error: 'Failed to approve gallery item' });
   }
 });
 

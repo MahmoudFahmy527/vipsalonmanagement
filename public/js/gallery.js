@@ -156,5 +156,49 @@ function initScrollReveal() {
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 }
 
+/* ---------- Customer photo submission ---------- */
+function openSubmit() {
+  document.getElementById('submitModal').classList.remove('hidden');
+}
+function closeSubmit() {
+  document.getElementById('submitModal').classList.add('hidden');
+}
+window.openSubmit = openSubmit;
+window.closeSubmit = closeSubmit;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('submitForm');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const file = document.getElementById('sub-file').files[0];
+    if (!file) { showToast('اختر صورة أولاً', 'error'); return; }
+    if (!file.type.startsWith('image/')) { showToast('الصور فقط مسموح بها', 'error'); return; }
+
+    const fd = new FormData();
+    fd.append('media', file);
+    fd.append('submitter_name', document.getElementById('sub-name').value.trim());
+    fd.append('description', document.getElementById('sub-desc').value.trim());
+
+    const btn = document.getElementById('sub-btn');
+    btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+    try {
+      const res = await fetch('/api/gallery/submit', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('شكراً! سيتم مراجعة صورتك قبل نشرها', 'success');
+        closeSubmit();
+        form.reset();
+      } else {
+        showToast(data.error || 'تعذر الإرسال', 'error');
+      }
+    } catch (_) {
+      showToast('حدث خطأ في الاتصال', 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'إرسال للمراجعة';
+    }
+  });
+});
+
 /* ---------- Init ---------- */
 document.addEventListener('DOMContentLoaded', loadGallery);

@@ -45,6 +45,18 @@
       <p>اختر الخدمة والموعد المناسب لك</p>
     </div>
 
+    <!-- Welcome-back banner (returning customer, from device memory) -->
+    <div class="welcome-back card" id="welcomeBack" hidden>
+      <span>👋 أهلاً بعودتك يا <strong class="wb-name"></strong>!</span>
+      <button type="button" class="wb-reset" onclick="forgetDevice()">مش إنت؟</button>
+    </div>
+
+    <!-- Returning customer's own bookings -->
+    <div class="card mybk" id="myBookings" hidden>
+      <h3 style="margin:0 0 0.75rem;">📅 حجوزاتك</h3>
+      <div class="mybk-list"></div>
+    </div>
+
     <!-- Steps -->
     <div class="steps" id="stepsIndicator">
       <div class="step active" data-step="1">
