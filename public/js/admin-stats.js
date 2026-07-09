@@ -52,7 +52,7 @@
       return `<div class="chart-bar" title="${p.date}: ${p.count}">
         <span class="val">${p.count || ''}</span>
         <div class="bar" style="height:${h}px;"></div>
-        <span class="lbl">${DAY[d.getDay()]} ${d.getDate()}</span>
+        <span class="lbl"><span class="d">${DAY[d.getDay()]}</span> ${d.getDate()}</span>
       </div>`;
     }).join('');
 

@@ -616,4 +616,45 @@ table th { color: var(--text-secondary); font-weight: 700; font-size: 0.9rem; }
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
   .modal-footer { flex-direction: column-reverse; }
   .modal-footer .btn { width: 100%; }
+
+  /* ---- Admin top bar: keep it ONE row that scrolls sideways ----
+     (8 links used to wrap into several rows and grow taller than the
+      space reserved for the fixed bar, pushing content underneath it). */
+  .navbar { padding: 0.6rem 0; }
+  .navbar > .container.flex-between { gap: 0.5rem; flex-wrap: nowrap; }
+  .navbar > .container.flex-between > .flex:first-child { flex: 0 0 auto; }        /* brand fixed */
+  .navbar > .container.flex-between > .flex:last-child {
+    flex: 1 1 0; min-width: 0;                 /* take the rest, allow shrink */
+    flex-wrap: nowrap !important;              /* override inline wrap */
+    overflow-x: auto; overflow-y: hidden;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .navbar > .container.flex-between > .flex:last-child::-webkit-scrollbar { display: none; }
+  .navbar .admin-nav-item,
+  .navbar > .container.flex-between > .flex:last-child > * { flex: 0 0 auto; white-space: nowrap; }
+  .navbar-brand, .navbar-logo { font-size: 1.05rem; }
+
+  /* Comfortable page gutters + toasts that don't run off-screen */
+  .page-container { padding-left: 16px; padding-right: 16px; }
+  .container { padding: 0 16px; }
+  .toast-container, #toast-container { left: 12px; right: 12px; bottom: 12px; }
+  .toast { min-width: 0; max-width: none; }
+
+  /* Hero: tighter on phones */
+  .hero { padding: 120px 18px 70px; }
+
+  /* Analytics: thin out the 14-day labels so they don't overlap */
+  .chart-bar .lbl { font-size: 0.55rem; }
+  .chart-bar .val { display: none; }
+  .chart .chart-bar:nth-child(even) .lbl { visibility: hidden; }
+
+  /* Two-up card rows stack on phones */
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 400px) {
+  .stats-bar { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  h2 { font-size: 1.5rem; }
 }
