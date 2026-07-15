@@ -33,6 +33,21 @@ db.exec(`
     created_at  TEXT    DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS branches (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    address     TEXT    DEFAULT '',
+    phone       TEXT    DEFAULT '',
+    map_url     TEXT    DEFAULT '',
+    work_days   TEXT    DEFAULT '',   -- '' = every day; else CSV of 0..6
+    off_dates   TEXT    DEFAULT '',   -- CSV of YYYY-MM-DD
+    work_start  INTEGER,              -- null = inherit salon hours
+    work_end    INTEGER,
+    is_active   INTEGER DEFAULT 1,
+    sort_order  INTEGER DEFAULT 0,
+    created_at  TEXT    DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS barbers (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
@@ -103,6 +118,9 @@ function ensureColumn(table, column, definition) {
 ensureColumn('bookings', 'customer_token', 'TEXT');
 // Which barber the booking is for (null = salon doesn't use barbers).
 ensureColumn('bookings', 'barber_id', 'INTEGER');
+// Which branch the booking / staff member belongs to (null = single-branch salon).
+ensureColumn('bookings', 'branch_id', 'INTEGER');
+ensureColumn('barbers', 'branch_id', 'INTEGER');
 // Per-barber schedule. work_days = comma list of weekday numbers (0=Sun..6=Sat),
 // empty = every day. off_dates = comma list of YYYY-MM-DD the barber is off.
 // work_start/work_end = optional per-barber hours that override the salon window.
@@ -159,43 +177,57 @@ for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
 // ──────────────────────────────────────────────
 
 /**
- * Non-rejected bookings for a date. When a barberId is given, only that
- * barber's bookings count — so each barber has an independent calendar.
- * With no barberId (salon not using barbers), all bookings for the date
- * are returned (legacy single-calendar behaviour).
+ * Non-rejected bookings for a date, scoped to the narrowest calendar:
+ *  - barberId  → just that barber's bookings (a barber belongs to one branch,
+ *                so this is already branch-specific).
+ *  - branchId  → that branch's bookings (branch without per-staff calendars).
+ *  - neither   → every booking that day (legacy single-calendar salon).
+ * This is what keeps branches/barbers from blocking each other's slots.
  */
-function getSlotsByDate(date, barberId) {
-  if (barberId === undefined || barberId === null || barberId === '') {
+const isSet = (v) => v !== undefined && v !== null && v !== '';
+
+function getSlotsByDate(date, barberId, branchId) {
+  if (isSet(barberId)) {
     return db
       .prepare(
         `SELECT * FROM bookings
-         WHERE date = ? AND status != 'rejected'
+         WHERE date = ? AND status != 'rejected' AND barber_id = ?
          ORDER BY time_slot`
       )
-      .all(date);
+      .all(date, Number(barberId));
+  }
+  if (isSet(branchId)) {
+    return db
+      .prepare(
+        `SELECT * FROM bookings
+         WHERE date = ? AND status != 'rejected' AND branch_id = ?
+         ORDER BY time_slot`
+      )
+      .all(date, Number(branchId));
   }
   return db
     .prepare(
       `SELECT * FROM bookings
-       WHERE date = ? AND status != 'rejected' AND barber_id = ?
+       WHERE date = ? AND status != 'rejected'
        ORDER BY time_slot`
     )
-    .all(date, Number(barberId));
+    .all(date);
 }
 
 /**
  * Insert a new booking and return the created row.
  */
-function createBooking({ customer_name, customer_phone, service_id, barber_id, date, time_slot, duration, status, note, customer_token }) {
+function createBooking({ customer_name, customer_phone, service_id, barber_id, branch_id, date, time_slot, duration, status, note, customer_token }) {
   const stmt = db.prepare(
-    `INSERT INTO bookings (customer_name, customer_phone, service_id, barber_id, date, time_slot, duration, status, note, customer_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO bookings (customer_name, customer_phone, service_id, barber_id, branch_id, date, time_slot, duration, status, note, customer_token, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const info = stmt.run(
     customer_name,
     customer_phone,
     service_id || null,
     barber_id || null,
+    branch_id || null,
     date,
     time_slot,
     duration || 60,
@@ -320,30 +352,19 @@ function deleteGalleryItem(id) {
 }
 
 // ──────────────────────────────────────────────
-// Barber helpers
+// Shared schedule logic (branches and barbers both use
+// work_days / off_dates / work_start / work_end)
 // ──────────────────────────────────────────────
 
-function getActiveBarbers() {
-  return db.prepare('SELECT * FROM barbers WHERE is_active = 1 ORDER BY sort_order, id').all();
-}
-
-function getAllBarbers() {
-  return db.prepare('SELECT * FROM barbers ORDER BY sort_order, id').all();
-}
-
-function getBarber(id) {
-  return db.prepare('SELECT * FROM barbers WHERE id = ?').get(id);
-}
-
 /**
- * Is a barber working on a given date? Considers their days-off list and
- * their working weekdays (empty work_days = every day).
+ * Is this entity (branch or barber) open/working on a date? Considers its
+ * days-off list and its working weekdays (empty work_days = every day).
  */
-function barberWorksOn(barber, dateStr) {
-  if (!barber) return false;
-  const off = String(barber.off_dates || '').split(',').map(s => s.trim()).filter(Boolean);
+function entityWorksOn(entity, dateStr) {
+  if (!entity) return false;
+  const off = String(entity.off_dates || '').split(',').map(s => s.trim()).filter(Boolean);
   if (off.includes(dateStr)) return false;
-  const days = String(barber.work_days || '').split(',').map(s => s.trim()).filter(Boolean);
+  const days = String(entity.work_days || '').split(',').map(s => s.trim()).filter(Boolean);
   if (days.length) {
     const dow = new Date(dateStr + 'T00:00:00').getDay(); // 0=Sun..6=Sat
     if (!days.includes(String(dow))) return false;
@@ -357,21 +378,96 @@ function normHour(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end }) {
+// ──────────────────────────────────────────────
+// Branch helpers
+// ──────────────────────────────────────────────
+
+function getActiveBranches() {
+  return db.prepare('SELECT * FROM branches WHERE is_active = 1 ORDER BY sort_order, id').all();
+}
+
+function getAllBranches() {
+  return db.prepare('SELECT * FROM branches ORDER BY sort_order, id').all();
+}
+
+function getBranch(id) {
+  return db.prepare('SELECT * FROM branches WHERE id = ?').get(id);
+}
+
+const branchWorksOn = entityWorksOn;
+
+function createBranch({ name, address, phone, map_url, sort_order, work_days, off_dates, work_start, work_end }) {
   const info = db
-    .prepare(`INSERT INTO barbers (name, specialty, sort_order, work_days, off_dates, work_start, work_end, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .prepare(`INSERT INTO branches (name, address, phone, map_url, sort_order, work_days, off_dates, work_start, work_end, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(name, address || '', phone || '', map_url || '', sort_order || 0,
+         work_days || '', off_dates || '', normHour(work_start), normHour(work_end), new Date().toISOString());
+  return db.prepare('SELECT * FROM branches WHERE id = ?').get(info.lastInsertRowid);
+}
+
+function updateBranch(id, { name, address, phone, map_url, sort_order, work_days, off_dates, work_start, work_end }) {
+  return db
+    .prepare(`UPDATE branches SET name = ?, address = ?, phone = ?, map_url = ?, sort_order = ?,
+              work_days = ?, off_dates = ?, work_start = ?, work_end = ? WHERE id = ?`)
+    .run(name, address || '', phone || '', map_url || '', sort_order || 0,
+         work_days || '', off_dates || '', normHour(work_start), normHour(work_end), id);
+}
+
+function toggleBranch(id) {
+  return db
+    .prepare('UPDATE branches SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?')
+    .run(id);
+}
+
+// Deleting a branch detaches its staff/bookings rather than orphaning them.
+function deleteBranch(id) {
+  db.prepare('UPDATE barbers SET branch_id = NULL WHERE branch_id = ?').run(id);
+  return db.prepare('DELETE FROM branches WHERE id = ?').run(id);
+}
+
+// ──────────────────────────────────────────────
+// Barber helpers
+// ──────────────────────────────────────────────
+
+// Active barbers, optionally only those at one branch.
+function getActiveBarbers(branchId) {
+  if (isSet(branchId)) {
+    return db
+      .prepare('SELECT * FROM barbers WHERE is_active = 1 AND branch_id = ? ORDER BY sort_order, id')
+      .all(Number(branchId));
+  }
+  return db.prepare('SELECT * FROM barbers WHERE is_active = 1 ORDER BY sort_order, id').all();
+}
+
+function getAllBarbers() {
+  return db.prepare(
+    `SELECT b.*, br.name AS branch_name FROM barbers b
+     LEFT JOIN branches br ON b.branch_id = br.id
+     ORDER BY b.sort_order, b.id`
+  ).all();
+}
+
+function getBarber(id) {
+  return db.prepare('SELECT * FROM barbers WHERE id = ?').get(id);
+}
+
+const barberWorksOn = entityWorksOn;
+
+function createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id }) {
+  const info = db
+    .prepare(`INSERT INTO barbers (name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(name, specialty || '', sort_order || 0, work_days || '', off_dates || '',
-         normHour(work_start), normHour(work_end), new Date().toISOString());
+         normHour(work_start), normHour(work_end), branch_id || null, new Date().toISOString());
   return db.prepare('SELECT * FROM barbers WHERE id = ?').get(info.lastInsertRowid);
 }
 
-function updateBarber(id, { name, specialty, sort_order, work_days, off_dates, work_start, work_end }) {
+function updateBarber(id, { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id }) {
   return db
     .prepare(`UPDATE barbers SET name = ?, specialty = ?, sort_order = ?,
-              work_days = ?, off_dates = ?, work_start = ?, work_end = ? WHERE id = ?`)
+              work_days = ?, off_dates = ?, work_start = ?, work_end = ?, branch_id = ? WHERE id = ?`)
     .run(name, specialty || '', sort_order || 0, work_days || '', off_dates || '',
-         normHour(work_start), normHour(work_end), id);
+         normHour(work_start), normHour(work_end), branch_id || null, id);
 }
 
 function toggleBarber(id) {
@@ -602,6 +698,15 @@ module.exports = {
   approveGalleryItem,
   updateGalleryDescription,
   deleteGalleryItem,
+  // Branches
+  getActiveBranches,
+  getAllBranches,
+  getBranch,
+  branchWorksOn,
+  createBranch,
+  updateBranch,
+  toggleBranch,
+  deleteBranch,
   // Barbers
   getActiveBarbers,
   getAllBarbers,

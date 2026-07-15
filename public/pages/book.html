@@ -56,49 +56,63 @@
       <div class="mybk-list"></div>
     </div>
 
-    <!-- Steps -->
+    <!-- Steps (branch/staff dots are hidden + renumbered automatically when unused) -->
     <div class="steps" id="stepsIndicator">
       <div class="step active" data-step="1"><div class="step-circle">1</div><div class="step-line"></div></div>
       <div class="step" data-step="2"><div class="step-circle">2</div><div class="step-line"></div></div>
       <div class="step" data-step="3"><div class="step-circle">3</div><div class="step-line"></div></div>
       <div class="step" data-step="4"><div class="step-circle">4</div><div class="step-line"></div></div>
-      <div class="step" data-step="5"><div class="step-circle">5</div></div>
+      <div class="step" data-step="5"><div class="step-circle">5</div><div class="step-line"></div></div>
+      <div class="step" data-step="6"><div class="step-circle">6</div></div>
     </div>
 
-    <!-- Step 1: Select Service -->
-    <div class="booking-step" id="step1">
+    <!-- Step 1: Select Branch (skipped when the salon has 0–1 branches) -->
+    <div class="booking-step hidden" id="step1">
+      <h2>اختر الفرع</h2>
+      <div class="service-select-grid" id="branchesGrid">
+        <div class="flex-center" style="grid-column: 1/-1;">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Select Service -->
+    <div class="booking-step hidden" id="step2">
       <h2>اختر الخدمة</h2>
       <div class="service-select-grid" id="servicesGrid">
         <div class="flex-center" style="grid-column: 1/-1;">
           <div class="spinner"></div>
         </div>
       </div>
+      <div class="text-center mt-3" id="serviceBackWrap" hidden>
+        <button class="btn btn-outline btn-sm" onclick="goToStep(1)">← رجوع</button>
+      </div>
     </div>
 
-    <!-- Step 2: Select Barber (hidden automatically when the salon has no barbers) -->
-    <div class="booking-step hidden" id="step2">
-      <h2>اختر الحلاق</h2>
+    <!-- Step 3: Select Barber (skipped when the branch has no staff) -->
+    <div class="booking-step hidden" id="step3">
+      <h2 data-staff-choose>اختر الحلاق</h2>
       <div class="service-select-grid" id="barbersGrid">
         <div class="flex-center" style="grid-column: 1/-1;">
           <div class="spinner"></div>
         </div>
       </div>
       <div class="text-center mt-3">
-        <button class="btn btn-outline btn-sm" onclick="goToStep(1)">← رجوع</button>
+        <button class="btn btn-outline btn-sm" onclick="goToStep(2)">← رجوع</button>
       </div>
     </div>
 
-    <!-- Step 3: Select Date -->
-    <div class="booking-step hidden" id="step3">
+    <!-- Step 4: Select Date -->
+    <div class="booking-step hidden" id="step4">
       <h2>اختر التاريخ</h2>
       <div class="date-picker" id="datePicker"></div>
       <div class="text-center mt-3">
-        <button class="btn btn-outline btn-sm" onclick="goToStep(state.skipBarber ? 1 : 2)">← رجوع</button>
+        <button class="btn btn-outline btn-sm" onclick="goToStep(state.skipBarber ? 2 : 3)">← رجوع</button>
       </div>
     </div>
 
-    <!-- Step 4: Select Time Slot -->
-    <div class="booking-step hidden" id="step4">
+    <!-- Step 5: Select Time Slot -->
+    <div class="booking-step hidden" id="step5">
       <h2>اختر الموعد</h2>
       <p class="text-center text-muted mb-2" id="selectedDateLabel"></p>
       <div class="flex-center gap-2 mb-3" style="flex-wrap:wrap;">
@@ -112,12 +126,12 @@
         </div>
       </div>
       <div class="text-center mt-3">
-        <button class="btn btn-outline btn-sm" onclick="goToStep(3)">← رجوع</button>
+        <button class="btn btn-outline btn-sm" onclick="goToStep(4)">← رجوع</button>
       </div>
     </div>
 
-    <!-- Step 5: Details & Confirm -->
-    <div class="booking-step hidden" id="step5">
+    <!-- Step 6: Details & Confirm -->
+    <div class="booking-step hidden" id="step6">
       <h2>أدخل بياناتك</h2>
       <div class="card mb-3" id="bookingSummary"></div>
       <form id="bookingForm" onsubmit="submitBooking(event)">
@@ -131,7 +145,7 @@
         </div>
         <div class="flex gap-2 mt-3">
           <button type="submit" class="btn btn-gold w-full" id="submitBtn">تأكيد الحجز</button>
-          <button type="button" class="btn btn-outline" onclick="goToStep(4)">رجوع</button>
+          <button type="button" class="btn btn-outline" onclick="goToStep(5)">رجوع</button>
         </div>
       </form>
     </div>

@@ -8,14 +8,36 @@ const MONTH_NAMES_AR = ['يناير','فبراير','مارس','أبريل','م�
 // Booking state
 const state = {
   currentStep: 1,
+  branches: [],
+  selectedBranch: null,
+  skipBranch: false,   // true when the salon has 0–1 branches
   services: [],
   selectedService: null,
   barbers: [],
   selectedBarber: null,
-  skipBarber: false,   // true when the salon has no barbers configured
+  skipBarber: false,   // true when this branch has no staff configured
   selectedDate: null,
   selectedSlot: null,
 };
+
+/* Steps: 1 branch · 2 service · 3 barber · 4 date · 5 time · 6 details.
+   Unused steps are hidden and the remaining dots renumbered 1..N. */
+function layoutSteps() {
+  let n = 0;
+  document.querySelectorAll('.steps .step').forEach((el) => {
+    const s = Number(el.dataset.step);
+    const skipped = (s === 1 && state.skipBranch) || (s === 3 && state.skipBarber);
+    el.style.display = skipped ? 'none' : '';
+    if (!skipped) {
+      n += 1;
+      const circle = el.querySelector('.step-circle');
+      if (circle) circle.textContent = String(n);
+    }
+  });
+  // The service step only needs a "back" button if a branch step precedes it.
+  const back = document.getElementById('serviceBackWrap');
+  if (back) back.hidden = state.skipBranch;
+}
 
 // Currency comes from salon settings (brand.js); fallback to EGP.
 const cur = () => (window.getCurrency ? window.getCurrency() : 'ج.م');
@@ -219,38 +241,68 @@ function selectService(service) {
   const card = document.querySelector(`#servicesGrid .service-select-card[data-id="${service.id || service._id}"]`);
   if (card) card.classList.add('selected');
 
-  // If the salon uses barbers, choose one next; otherwise jump to the date.
+  // If this branch uses staff, choose one next; otherwise jump to the date.
   if (state.skipBarber) {
     buildDatePicker();
-    setTimeout(() => goToStep(3), 300);
+    setTimeout(() => goToStep(4), 300);
   } else {
-    setTimeout(() => goToStep(2), 300);
+    setTimeout(() => goToStep(3), 300);
   }
 }
 
-/* ---------- Barbers ---------- */
-async function loadBarbers() {
+/* ---------- Branches ---------- */
+async function loadBranches() {
   try {
-    const res = await fetch('/api/barbers');
-    const data = await res.json();
+    const data = await (await fetch('/api/branches')).json();
+    state.branches = Array.isArray(data) ? data : [];
+  } catch (_) {
+    state.branches = [];
+  }
+
+  // 0 branches → nothing to pick. 1 branch → auto-select it silently.
+  if (state.branches.length <= 1) {
+    state.skipBranch = true;
+    state.selectedBranch = state.branches[0] || null;
+    return;
+  }
+  renderBranches();
+}
+
+function renderBranches() {
+  document.getElementById('branchesGrid').innerHTML = state.branches.map(b => `
+    <div class="service-select-card" data-branch-id="${b.id}" onclick="selectBranch(${b.id})">
+      <div class="barber-avatar">🏢</div>
+      <h3>${escapeHtml(b.name)}</h3>
+      ${b.address ? `<div class="text-muted" style="font-size:0.85rem;">📍 ${escapeHtml(b.address)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+async function selectBranch(id) {
+  state.selectedBranch = state.branches.find(b => b.id === id) || null;
+  document.querySelectorAll('#branchesGrid .service-select-card').forEach(c => c.classList.remove('selected'));
+  const card = document.querySelector(`#branchesGrid .service-select-card[data-branch-id="${id}"]`);
+  if (card) card.classList.add('selected');
+
+  // Staff are per-branch, so (re)load them for this branch.
+  await loadBarbers(state.selectedBranch ? state.selectedBranch.id : null);
+  layoutSteps();
+  setTimeout(() => goToStep(2), 300);
+}
+
+/* ---------- Barbers ---------- */
+async function loadBarbers(branchId) {
+  try {
+    const q = branchId ? `?branch=${branchId}` : '';
+    const data = await (await fetch(`/api/barbers${q}`)).json();
     state.barbers = Array.isArray(data) ? data : [];
   } catch (_) {
     state.barbers = [];
   }
-
-  if (!state.barbers.length) {
-    // No barbers → hide the barber step and renumber the remaining dots 1..4.
-    state.skipBarber = true;
-    const dot2 = document.querySelector('.steps .step[data-step="2"]');
-    if (dot2) dot2.style.display = 'none';
-    const relabel = { 3: '2', 4: '3', 5: '4' };
-    Object.entries(relabel).forEach(([ds, label]) => {
-      const c = document.querySelector(`.steps .step[data-step="${ds}"] .step-circle`);
-      if (c) c.textContent = label;
-    });
-    return;
-  }
-  renderBarbers();
+  state.selectedBarber = null;
+  state.skipBarber = state.barbers.length === 0;
+  if (!state.skipBarber) renderBarbers();
+  layoutSteps();
 }
 
 function renderBarbers() {
@@ -282,7 +334,7 @@ function selectBarber(id) {
   const card = document.querySelector(`#barbersGrid .service-select-card[data-barber-id="${id}"]`);
   if (card) card.classList.add('selected');
   buildDatePicker();
-  setTimeout(() => goToStep(3), 300);
+  setTimeout(() => goToStep(4), 300);
 }
 
 function escapeHtml(s) {
@@ -333,7 +385,7 @@ function selectDate(dateStr, el) {
 
   // Load slots
   loadSlots(dateStr);
-  setTimeout(() => goToStep(4), 300);
+  setTimeout(() => goToStep(5), 300);
 }
 
 /* ---------- Load Slots ---------- */
@@ -341,10 +393,13 @@ async function loadSlots(date) {
   const grid = document.getElementById('slotsGrid');
   grid.innerHTML = '<div class="flex-center" style="grid-column:1/-1;"><div class="spinner"></div></div>';
 
-  // Scope availability to the chosen barber (their own calendar).
-  const barberParam = state.selectedBarber ? `?barber=${state.selectedBarber.id}` : '';
+  // Scope availability to the chosen barber and/or branch (their own calendar).
+  const q = new URLSearchParams();
+  if (state.selectedBarber) q.set('barber', state.selectedBarber.id);
+  if (state.selectedBranch) q.set('branch', state.selectedBranch.id);
+  const qs = q.toString() ? `?${q}` : '';
   try {
-    const res = await fetch(`/api/slots/${date}${barberParam}`);
+    const res = await fetch(`/api/slots/${date}${qs}`);
     if (!res.ok) throw new Error('فشل تحميل المواعيد');
     const data = await res.json();
     const slots = Array.isArray(data) ? data : (data.slots || []);
@@ -401,7 +456,7 @@ function selectSlot(time, el) {
 
   // Build summary and go to the details step
   buildSummary();
-  setTimeout(() => goToStep(5), 300);
+  setTimeout(() => goToStep(6), 300);
 }
 
 /* ---------- Summary ---------- */
@@ -412,14 +467,20 @@ function buildSummary() {
   const dayNum = d.getDate();
   const monthName = MONTH_NAMES_AR[d.getMonth()];
 
+  const branchRow = (state.selectedBranch && !state.skipBranch) ? `
+      <div class="flex-between">
+        <span class="text-muted">الفرع</span>
+        <span style="font-weight:700;">${escapeHtml(state.selectedBranch.name)}</span>
+      </div>` : '';
+
   const barberRow = state.selectedBarber ? `
       <div class="flex-between">
-        <span class="text-muted">الحلاق</span>
+        <span class="text-muted" data-staff-label>الحلاق</span>
         <span style="font-weight:700;">${escapeHtml(state.selectedBarber.name)}</span>
       </div>` : '';
 
   document.getElementById('bookingSummary').innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:0.5rem;">
+    <div style="display:flex;flex-direction:column;gap:0.5rem;">${branchRow}
       <div class="flex-between">
         <span class="text-muted">الخدمة</span>
         <span style="font-weight:700;">${s.name}</span>
@@ -468,6 +529,7 @@ async function submitBooking(e) {
         customer_phone: phone,
         service_id: state.selectedService.id || state.selectedService._id,
         barber_id: state.selectedBarber ? state.selectedBarber.id : null,
+        branch_id: state.selectedBranch ? state.selectedBranch.id : null,
         date: state.selectedDate,
         time_slot: state.selectedSlot,
         customer_token: device.token,
@@ -549,6 +611,7 @@ function buildWhatsappButton(name, phone, dateLabel) {
     `الهاتف: ${phone}`,
     `الخدمة: ${s.name} (${s.price} ${cur()})`,
   ];
+  if (state.selectedBranch && !state.skipBranch) lines.push(`الفرع: ${state.selectedBranch.name}`);
   if (state.selectedBarber) lines.push(`الحلاق: ${state.selectedBarber.name}`);
   lines.push(`التاريخ: ${dateLabel}`, `الموعد: ${formatTime12(state.selectedSlot)}`);
   const url = `https://wa.me/${digits}?text=${encodeURIComponent(lines.join('\n'))}`;
@@ -569,7 +632,14 @@ function buildWhatsappButton(name, phone, dateLabel) {
 
 /* ---------- Initialize ---------- */
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadBarbers();   // resolves skipBarber before any service preselect
+  await loadBranches();  // decides skipBranch (and auto-picks a lone branch)
+  // Staff are per-branch: with a branch step, they load after the branch is
+  // chosen; otherwise load them now for the (single/absent) branch.
+  if (state.skipBranch) {
+    await loadBarbers(state.selectedBranch ? state.selectedBranch.id : null);
+  }
+  layoutSteps();
+  goToStep(state.skipBranch ? 2 : 1); // start at branch, or straight at service
   loadServices();
   initReturningCustomer();
 });

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>الحلاقين — صالونك</title>
+  <title>الفروع — صالونك</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
@@ -27,10 +27,10 @@
       <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
         <a href="/admin/stats" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإحصائيات</a>
-        <a href="/admin/branches" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الفروع</a>
+        <a href="/admin/branches" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الفروع</a>
         <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
         <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
-        <a href="/admin/barbers" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الحلاقين</a>
+        <a href="/admin/barbers" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;" data-staff-plural>الحلاقين</a>
         <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
         <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
         <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
@@ -43,74 +43,76 @@
     <div class="container mt-2" style="max-width:820px;">
       <div class="action-bar flex-between" style="margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem;">
         <div>
-          <h2 style="margin:0;">الحلاقين</h2>
-          <p class="text-muted" style="margin:0;">أضف حلاقيك — سيختار العميل من بينهم، ولكل حلاق مواعيده الخاصة.</p>
+          <h2 style="margin:0;">الفروع</h2>
+          <p class="text-muted" style="margin:0;">لكل فرع عنوانه ومواعيده وفريقه وتقويمه المستقل.</p>
         </div>
-        <button class="btn btn-gold" id="add-btn">+ إضافة حلاق</button>
+        <button class="btn btn-gold" id="add-btn">+ إضافة فرع</button>
       </div>
 
-      <div id="barbers-list">
+      <div id="branches-list">
         <div class="flex-center mt-3"><div class="spinner"></div></div>
       </div>
 
       <p class="text-muted mt-3" style="font-size:0.9rem;">
-        💡 إذا لم تضف أي حلاق، سيتخطى العميل هذه الخطوة ويحجز مباشرة (تقويم واحد للصالون).
+        💡 فرع واحد أو بدون فروع = يحجز العميل مباشرة دون اختيار فرع. أضف فرعين أو أكثر ليظهر اختيار الفرع.
       </p>
     </div>
   </div>
 
   <!-- Add / Edit modal -->
-  <div class="modal-overlay hidden" id="barber-modal">
+  <div class="modal-overlay hidden" id="branch-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="modal-title">إضافة حلاق</h3>
+        <h3 id="modal-title">إضافة فرع</h3>
         <button class="btn btn-icon" id="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <input type="hidden" id="barber-id">
+        <input type="hidden" id="branch-id">
         <div class="form-group">
-          <label class="form-label">الاسم *</label>
-          <input class="form-input" id="barber-name" placeholder="مثال: أحمد">
+          <label class="form-label">اسم الفرع *</label>
+          <input class="form-input" id="branch-name" placeholder="مثال: فرع المعادي">
         </div>
         <div class="form-group">
-          <label class="form-label">التخصص (اختياري)</label>
-          <input class="form-input" id="barber-specialty" placeholder="مثال: قص وتحديد ذقن">
+          <label class="form-label">العنوان</label>
+          <input class="form-input" id="branch-address" placeholder="مثال: 12 شارع 9، المعادي">
         </div>
-
-        <div class="form-group" id="barber-branch-group" style="display:none;">
-          <label class="form-label">الفرع</label>
-          <select class="form-select" id="barber-branch"></select>
-          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">الفرع الذي يعمل به.</div>
+        <div class="form-group">
+          <label class="form-label">رقم الهاتف</label>
+          <input class="form-input" id="branch-phone" dir="ltr" placeholder="01000000000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">رابط الخريطة (اختياري)</label>
+          <input class="form-input" id="branch-map" dir="ltr" placeholder="https://maps.google.com/...">
         </div>
 
         <div class="form-group">
           <label class="form-label">أيام العمل</label>
-          <div class="workdays" id="barber-workdays"></div>
-          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">الأيام التي يعمل بها هذا الحلاق.</div>
+          <div class="workdays" id="branch-workdays"></div>
+          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">أيام فتح هذا الفرع.</div>
         </div>
 
         <div class="form-group">
           <label class="form-label">ساعات العمل (اختياري)</label>
           <div class="flex gap-2" style="align-items:center;">
-            <input class="form-input" id="barber-start" type="number" min="0" max="23" placeholder="من (افتراضي الصالون)" style="width:100%;">
+            <input class="form-input" id="branch-start" type="number" min="0" max="23" placeholder="من (افتراضي الصالون)" style="width:100%;">
             <span class="text-muted">—</span>
-            <input class="form-input" id="barber-end" type="number" min="0" max="23" placeholder="إلى" style="width:100%;">
+            <input class="form-input" id="branch-end" type="number" min="0" max="23" placeholder="إلى" style="width:100%;">
           </div>
-          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">اتركها فارغة لاستخدام مواعيد الصالون. مثال: 12 إلى 22 (نظام 24 ساعة).</div>
+          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">اتركها فارغة لاستخدام مواعيد الصالون العامة.</div>
         </div>
 
         <div class="form-group">
-          <label class="form-label">أيام الإجازة (تواريخ محددة)</label>
+          <label class="form-label">أيام الإغلاق (تواريخ محددة)</label>
           <div class="flex gap-2" style="align-items:center;">
-            <input class="form-input" id="barber-offdate" type="date" style="width:100%;color-scheme:dark;">
+            <input class="form-input" id="branch-offdate" type="date" style="width:100%;color-scheme:dark;">
             <button type="button" class="btn btn-outline btn-sm" id="add-offdate">إضافة</button>
           </div>
-          <div class="offdates-list" id="barber-offdates" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;"></div>
+          <div id="branch-offdates" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;"></div>
         </div>
 
         <div class="form-group">
           <label class="form-label">الترتيب (اختياري)</label>
-          <input class="form-input" id="barber-sort" type="number" value="0">
+          <input class="form-input" id="branch-sort" type="number" value="0">
         </div>
       </div>
       <div class="modal-footer">
@@ -121,6 +123,6 @@
   </div>
 
   <div id="toast-container" class="toast-container"></div>
-  <script src="/js/admin-barbers.js"></script>
+  <script src="/js/admin-branches.js"></script>
 </body>
 </html>

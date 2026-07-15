@@ -186,11 +186,32 @@ function salonOpenOn(date, cfg) {
   return true;
 }
 
-// A barber's own window (falls back to the salon window).
+/**
+ * Effective opening window, most-specific first:
+ *   barber's own hours → their branch's hours → the salon's hours.
+ */
+function effectiveWindow(barber, branch, cfg) {
+  const pick = (k, fallback) => {
+    if (barber && barber[k] != null) return barber[k];
+    if (branch && branch[k] != null) return branch[k];
+    return fallback;
+  };
+  return { start: pick('work_start', cfg.open), end: pick('work_end', cfg.close) };
+}
+
+/**
+ * Open on this date? The salon, the branch and the barber must all be open.
+ */
+function openOn(date, cfg, branch, barber) {
+  if (!salonOpenOn(date, cfg)) return false;
+  if (branch && !db.branchWorksOn(branch, date)) return false;
+  if (barber && !db.barberWorksOn(barber, date)) return false;
+  return true;
+}
+
+// Back-compat alias used by the "any barber" path.
 function barberWindow(barber, cfg) {
-  const start = (barber && barber.work_start != null) ? barber.work_start : cfg.open;
-  const end = (barber && barber.work_end != null) ? barber.work_end : cfg.close;
-  return { start, end };
+  return effectiveWindow(barber, null, cfg);
 }
 
 // Does a booking overlap the [slotStart, slotStart+DURATION) window and hold it?
@@ -281,6 +302,11 @@ app.get('/admin/barbers', (req, res) => {
   res.sendFile(path.join(pagesDir, 'admin-barbers.html'));
 });
 
+app.get('/admin/branches', (req, res) => {
+  if (!req.session || !req.session.isAdmin) return res.redirect('/login');
+  res.sendFile(path.join(pagesDir, 'admin-branches.html'));
+});
+
 app.get('/admin/stats', (req, res) => {
   if (!req.session || !req.session.isAdmin) return res.redirect('/login');
   res.sendFile(path.join(pagesDir, 'admin-stats.html'));
@@ -342,10 +368,21 @@ app.get('/api/services', (_req, res) => {
   }
 });
 
-// Active barbers (public). Empty array = salon doesn't use barbers.
-app.get('/api/barbers', (_req, res) => {
+// Active branches (public). Empty array = single-branch salon → step skipped.
+app.get('/api/branches', (_req, res) => {
   try {
-    res.json(db.getActiveBarbers());
+    res.json(db.getActiveBranches());
+  } catch (err) {
+    console.error('GET /api/branches error:', err);
+    res.status(500).json({ error: 'Failed to fetch branches' });
+  }
+});
+
+// Active barbers (public), optionally only those at one branch (?branch=<id>).
+// Empty array = salon doesn't use barbers.
+app.get('/api/barbers', (req, res) => {
+  try {
+    res.json(db.getActiveBarbers(req.query.branch));
   } catch (err) {
     console.error('GET /api/barbers error:', err);
     res.status(500).json({ error: 'Failed to fetch barbers' });
@@ -360,19 +397,24 @@ app.get('/api/slots/:date', (req, res) => {
   try {
     const { date } = req.params; // YYYY-MM-DD
     const barberId = req.query.barber;
+    const branchId = req.query.branch;
 
     const cfg = salonCfg();
     const openH = cfg.open;
     // Salon closed that day (holiday / weekly closure) → no slots at all.
     if (!salonOpenOn(date, cfg)) return res.json([]);
 
-    // ---- "Any available barber" ----
+    // Branch closed that day → no slots for that branch.
+    const branch = branchId ? db.getBranch(Number(branchId)) : null;
+    if (branchId && (!branch || !db.branchWorksOn(branch, date))) return res.json([]);
+
+    // ---- "Any available barber" (within the chosen branch, if any) ----
     if (barberId === 'any') {
-      const barbers = db.getActiveBarbers().filter((b) => db.barberWorksOn(b, date));
+      const barbers = db.getActiveBarbers(branchId).filter((b) => db.barberWorksOn(b, date));
       if (!barbers.length) return res.json([]); // no barber works this day
 
       const perBarber = barbers.map((b) => {
-        const { start, end } = barberWindow(b, cfg);
+        const { start, end } = effectiveWindow(b, branch, cfg);
         return {
           times: new Set(generateSlotTimesFor(start, end)),
           bookings: db.getSlotsByDate(date, b.id),
@@ -395,16 +437,17 @@ app.get('/api/slots/:date', (req, res) => {
       return res.json(result);
     }
 
-    // ---- A specific barber ----
-    let slotTimes = generateSlotTimesFor(cfg.open, cfg.close);
+    // ---- A specific barber, or a branch-wide / salon-wide calendar ----
+    const { start: winStart, end: winEnd } = effectiveWindow(null, branch, cfg);
+    let slotTimes = generateSlotTimesFor(winStart, winEnd);
     if (barberId) {
       const barber = db.getBarber(Number(barberId));
       if (!barber || !db.barberWorksOn(barber, date)) return res.json([]); // day off
-      const { start, end } = barberWindow(barber, cfg);
-      slotTimes = generateSlotTimesFor(start, end);
+      const w = effectiveWindow(barber, branch, cfg);
+      slotTimes = generateSlotTimesFor(w.start, w.end);
     }
 
-    const bookings = db.getSlotsByDate(date, barberId);
+    const bookings = db.getSlotsByDate(date, barberId, branchId);
 
     const result = slotTimes.map((time) => {
       const slotStart = slotToMinutes(time, openH);
@@ -431,7 +474,7 @@ app.get('/api/slots/:date', (req, res) => {
 // Create a booking (public)
 app.post('/api/book', (req, res) => {
   try {
-    const { customer_name, customer_phone, service_id, barber_id, date, time_slot, customer_token } = req.body;
+    const { customer_name, customer_phone, service_id, barber_id, branch_id, date, time_slot, customer_token } = req.body;
 
     // Validation
     if (!customer_name || !customer_phone || !date || !time_slot) {
@@ -446,15 +489,24 @@ app.post('/api/book', (req, res) => {
       return res.status(409).json({ error: 'الصالون مغلق في هذا اليوم' });
     }
 
+    // Validate the branch (if the salon uses branches).
+    const branch = branch_id ? db.getBranch(Number(branch_id)) : null;
+    if (branch_id && !branch) return res.status(400).json({ error: 'الفرع غير موجود' });
+    if (branch && !db.branchWorksOn(branch, date)) {
+      return res.status(409).json({ error: 'هذا الفرع مغلق في هذا اليوم' });
+    }
+
     const slotStart = slotToMinutes(time_slot, cfg.open);
 
     const hasClash = (barberId) =>
-      db.getSlotsByDate(date, barberId).some((b) => bookingBlocks(b, slotStart, cfg.open));
+      db.getSlotsByDate(date, barberId, barberId ? null : branch_id)
+        .some((b) => bookingBlocks(b, slotStart, cfg.open));
 
     const baseBooking = {
       customer_name,
       customer_phone,
       service_id: Number(service_id),
+      branch_id: branch ? branch.id : null,
       date,
       time_slot,
       duration: config.SLOT_DURATION,
@@ -466,8 +518,8 @@ app.post('/api/book', (req, res) => {
     let assignedBarber = null;
 
     if (barber_id === 'any') {
-      // Assign the first working barber who is free for this slot (atomic).
-      const candidates = db.getActiveBarbers().filter((b) => db.barberWorksOn(b, date));
+      // Assign the first working barber at this branch who is free (atomic).
+      const candidates = db.getActiveBarbers(branch_id).filter((b) => db.barberWorksOn(b, date));
       if (!candidates.length) {
         return res.status(409).json({ error: 'لا يوجد حلاق متاح في هذا الموعد' });
       }
@@ -500,6 +552,7 @@ app.post('/api/book', (req, res) => {
     const svc = db.db.prepare('SELECT name FROM services WHERE id = ?').get(Number(service_id));
     const lines = [
       '🆕 حجز جديد',
+      branch ? `🏢 ${branch.name}` : null,
       `👤 ${customer_name}`,
       `📞 ${customer_phone}`,
       svc ? `✂️ ${svc.name}` : null,
@@ -723,16 +776,19 @@ app.get('/api/admin/bookings/:date', isAdmin, (req, res) => {
   try {
     const { date } = req.params;
     const barberId = req.query.barber; // optional filter → one barber's day
+    const branchId = req.query.branch; // optional filter → one branch's day
     let sql =
       `SELECT b.*, s.name AS service_name, s.name_en AS service_name_en,
               s.price AS service_price, s.duration AS service_duration,
-              br.name AS barber_name
+              br.name AS barber_name, bx.name AS branch_name
        FROM bookings b
        LEFT JOIN services s ON b.service_id = s.id
        LEFT JOIN barbers br ON b.barber_id = br.id
+       LEFT JOIN branches bx ON b.branch_id = bx.id
        WHERE b.date = ?`;
     const params = [date];
     if (barberId) { sql += ' AND b.barber_id = ?'; params.push(Number(barberId)); }
+    if (branchId) { sql += ' AND b.branch_id = ?'; params.push(Number(branchId)); }
     sql += ' ORDER BY b.time_slot';
     const rows = db.db.prepare(sql).all(...params);
     // Flag returning customers (booked before under the same phone).
@@ -778,7 +834,7 @@ app.put('/api/admin/bookings/:id/time', isAdmin, (req, res) => {
 
 app.post('/api/admin/reserve', isAdmin, (req, res) => {
   try {
-    const { date, time_slot, note, duration, barber_id } = req.body;
+    const { date, time_slot, note, duration, barber_id, branch_id } = req.body;
     if (!date || !time_slot) {
       return res.status(400).json({ error: 'date and time_slot are required' });
     }
@@ -787,6 +843,7 @@ app.post('/api/admin/reserve', isAdmin, (req, res) => {
       customer_phone: '-',
       service_id: null,
       barber_id: barber_id ? Number(barber_id) : null,
+      branch_id: branch_id ? Number(branch_id) : null,
       date,
       time_slot,
       duration: duration || config.SLOT_DURATION,
@@ -953,6 +1010,60 @@ app.delete('/api/admin/services/:id', isAdmin, (req, res) => {
 });
 
 // ──────────────────────────────────────────────
+// ADMIN – BRANCHES
+// ──────────────────────────────────────────────
+
+app.get('/api/admin/branches', isAdmin, (_req, res) => {
+  try {
+    res.json(db.getAllBranches());
+  } catch (err) {
+    console.error('GET /api/admin/branches error:', err);
+    res.status(500).json({ error: 'Failed to fetch branches' });
+  }
+});
+
+app.post('/api/admin/branches', isAdmin, (req, res) => {
+  try {
+    if (!req.body.name) return res.status(400).json({ error: 'name is required' });
+    res.status(201).json({ success: true, branch: db.createBranch(req.body) });
+  } catch (err) {
+    console.error('POST /api/admin/branches error:', err);
+    res.status(500).json({ error: 'Failed to create branch' });
+  }
+});
+
+app.put('/api/admin/branches/:id', isAdmin, (req, res) => {
+  try {
+    if (!req.body.name) return res.status(400).json({ error: 'name is required' });
+    db.updateBranch(Number(req.params.id), req.body);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /api/admin/branches/:id error:', err);
+    res.status(500).json({ error: 'Failed to update branch' });
+  }
+});
+
+app.put('/api/admin/branches/:id/toggle', isAdmin, (req, res) => {
+  try {
+    db.toggleBranch(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /api/admin/branches/:id/toggle error:', err);
+    res.status(500).json({ error: 'Failed to toggle branch' });
+  }
+});
+
+app.delete('/api/admin/branches/:id', isAdmin, (req, res) => {
+  try {
+    db.deleteBranch(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/admin/branches/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete branch' });
+  }
+});
+
+// ──────────────────────────────────────────────
 // ADMIN – BARBERS
 // ──────────────────────────────────────────────
 
@@ -967,9 +1078,9 @@ app.get('/api/admin/barbers', isAdmin, (_req, res) => {
 
 app.post('/api/admin/barbers', isAdmin, (req, res) => {
   try {
-    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end } = req.body;
+    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    const barber = db.createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end });
+    const barber = db.createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id });
     res.status(201).json({ success: true, barber });
   } catch (err) {
     console.error('POST /api/admin/barbers error:', err);
@@ -979,9 +1090,9 @@ app.post('/api/admin/barbers', isAdmin, (req, res) => {
 
 app.put('/api/admin/barbers/:id', isAdmin, (req, res) => {
   try {
-    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end } = req.body;
+    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    db.updateBarber(Number(req.params.id), { name, specialty, sort_order, work_days, off_dates, work_start, work_end });
+    db.updateBarber(Number(req.params.id), { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id });
     res.json({ success: true });
   } catch (err) {
     console.error('PUT /api/admin/barbers/:id error:', err);

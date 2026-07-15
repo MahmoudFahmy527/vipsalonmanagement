@@ -1,11 +1,11 @@
 // ============================================================
-// Admin Barbers — manage staff + per-barber calendars
+// Admin Branches — locations, each with its own hours + calendar
 // ============================================================
 (function () {
   'use strict';
 
-  const listEl = document.getElementById('barbers-list');
-  const modal = document.getElementById('barber-modal');
+  const listEl = document.getElementById('branches-list');
+  const modal = document.getElementById('branch-modal');
   const toastC = document.getElementById('toast-container');
 
   function showToast(msg, type = 'success') {
@@ -21,12 +21,14 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const DAY_SHORT = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+  const DAY_NAMES = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
   function scheduleSummary(b) {
     const days = String(b.work_days || '').split(',').map(s => s.trim()).filter(Boolean);
     let out = days.length ? days.map(d => DAY_SHORT[Number(d)]).join('، ') : 'كل الأيام';
     if (b.work_start != null && b.work_end != null) out += ` · ${b.work_start}:00–${b.work_end}:00`;
     const off = String(b.off_dates || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (off.length) out += ` · ${off.length} إجازة`;
+    if (off.length) out += ` · ${off.length} إغلاق`;
     return out;
   }
 
@@ -39,63 +41,50 @@
     fetch('/api/logout', { method: 'POST' }).then(() => location.href = '/login');
   });
 
-  // Branches (only shown when the salon actually has some)
-  let branches = [];
-  async function loadBranches() {
-    try { branches = await (await fetch('/api/admin/branches')).json(); } catch (_) { branches = []; }
-    const group = document.getElementById('barber-branch-group');
-    const sel = document.getElementById('barber-branch');
-    if (!branches.length) { group.style.display = 'none'; return; }
-    sel.innerHTML = '<option value="">— بدون فرع —</option>' +
-      branches.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
-    group.style.display = '';
-  }
-
   async function load() {
     listEl.innerHTML = '<div class="flex-center mt-3"><div class="spinner"></div></div>';
     try {
-      await loadBranches();
-      const barbers = await (await fetch('/api/admin/barbers')).json();
-      render(barbers);
+      render(await (await fetch('/api/admin/branches')).json());
     } catch (_) {
-      listEl.innerHTML = '<div class="empty-state"><p>⚠️ تعذر تحميل الحلاقين</p></div>';
+      listEl.innerHTML = '<div class="empty-state"><p>⚠️ تعذر تحميل الفروع</p></div>';
     }
   }
 
-  function render(barbers) {
-    if (!barbers.length) {
-      listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">💈</div><h3>لا يوجد حلاقون بعد</h3><p>أضف أول حلاق ليتمكن العملاء من الاختيار.</p></div>';
+  function render(branches) {
+    if (!branches.length) {
+      listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🏢</div><h3>لا توجد فروع</h3><p>أضف فرعاً لكل موقع إذا كان لديك أكثر من فرع.</p></div>';
       return;
     }
     listEl.innerHTML = '';
-    barbers.forEach(b => {
+    branches.forEach(b => {
       const card = document.createElement('div');
       card.className = 'card booking-card';
       card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;';
       const dim = b.is_active ? '' : 'opacity:0.5;';
       card.innerHTML = `
         <div class="flex" style="align-items:center;gap:0.9rem;${dim}">
-          <div class="barber-avatar" style="margin:0;width:48px;height:48px;font-size:1.3rem;">${esc((b.name || '?').trim().charAt(0))}</div>
+          <div class="barber-avatar" style="margin:0;width:48px;height:48px;font-size:1.2rem;">🏢</div>
           <div>
             <h4 style="margin:0;">${esc(b.name)} ${b.is_active ? '' : '<span class="badge badge-rejected">مخفي</span>'}</h4>
-            ${b.specialty ? `<div class="text-muted" style="font-size:0.85rem;">${esc(b.specialty)}</div>` : ''}
+            ${b.address ? `<div class="text-muted" style="font-size:0.85rem;">📍 ${esc(b.address)}</div>` : ''}
+            ${b.phone ? `<div class="text-muted" style="font-size:0.8rem;" dir="ltr">📞 ${esc(b.phone)}</div>` : ''}
             <div class="text-muted" style="font-size:0.8rem;">🗓️ ${scheduleSummary(b)}</div>
           </div>
         </div>
         <div class="flex gap-2" style="flex-wrap:wrap;">
-          <button class="btn btn-outline btn-sm" data-edit="${b.id}">✏️ تعديل</button>
-          <button class="btn btn-secondary btn-sm" data-toggle="${b.id}">${b.is_active ? '🙈 إخفاء' : '👁️ إظهار'}</button>
-          <button class="btn btn-danger btn-sm" data-del="${b.id}">🗑️ حذف</button>
+          <button class="btn btn-outline btn-sm" data-edit>✏️ تعديل</button>
+          <button class="btn btn-secondary btn-sm" data-toggle>${b.is_active ? '🙈 إخفاء' : '👁️ إظهار'}</button>
+          <button class="btn btn-danger btn-sm" data-del>🗑️ حذف</button>
         </div>`;
 
       card.querySelector('[data-edit]').addEventListener('click', () => openModal(b));
       card.querySelector('[data-toggle]').addEventListener('click', async () => {
-        await fetch(`/api/admin/barbers/${b.id}/toggle`, { method: 'PUT' });
+        await fetch(`/api/admin/branches/${b.id}/toggle`, { method: 'PUT' });
         load();
       });
       card.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!confirm(`حذف الحلاق "${b.name}"؟`)) return;
-        await fetch(`/api/admin/barbers/${b.id}`, { method: 'DELETE' });
+        if (!confirm(`حذف الفرع "${b.name}"؟ سيتم فصل الموظفين عنه.`)) return;
+        await fetch(`/api/admin/branches/${b.id}`, { method: 'DELETE' });
         showToast('تم الحذف');
         load();
       });
@@ -103,61 +92,54 @@
     });
   }
 
-  // ---- Schedule editor state ----
-  const DAY_NAMES = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  // ---- Schedule editor ----
   let offDates = [];
-
-  // Build the weekday chips once.
-  const workdaysEl = document.getElementById('barber-workdays');
+  const workdaysEl = document.getElementById('branch-workdays');
   workdaysEl.innerHTML = DAY_NAMES.map((d, i) =>
     `<button type="button" class="workday-chip active" data-day="${i}">${d}</button>`).join('');
   workdaysEl.querySelectorAll('.workday-chip').forEach(chip =>
     chip.addEventListener('click', () => chip.classList.toggle('active')));
 
   function setWorkdays(csv) {
-    // Empty csv = works every day → all active.
     const days = String(csv || '').split(',').map(s => s.trim()).filter(Boolean);
-    const all = days.length === 0;
-    workdaysEl.querySelectorAll('.workday-chip').forEach(chip => {
-      chip.classList.toggle('active', all || days.includes(chip.dataset.day));
-    });
+    const all = days.length === 0; // empty = open every day
+    workdaysEl.querySelectorAll('.workday-chip').forEach(chip =>
+      chip.classList.toggle('active', all || days.includes(chip.dataset.day)));
   }
   function getWorkdays() {
     const active = [...workdaysEl.querySelectorAll('.workday-chip.active')].map(c => c.dataset.day);
-    // All 7 selected → store empty (= every day).
     return active.length === 7 ? '' : active.join(',');
   }
 
   function renderOffDates() {
-    const el = document.getElementById('barber-offdates');
+    const el = document.getElementById('branch-offdates');
     el.innerHTML = offDates.map(d =>
       `<span class="offdate-chip">${d}<button type="button" data-off="${d}">✕</button></span>`).join('');
     el.querySelectorAll('button[data-off]').forEach(btn =>
       btn.addEventListener('click', () => { offDates = offDates.filter(x => x !== btn.dataset.off); renderOffDates(); }));
   }
   document.getElementById('add-offdate').addEventListener('click', () => {
-    const input = document.getElementById('barber-offdate');
-    const v = input.value;
-    if (v && !offDates.includes(v)) { offDates.push(v); offDates.sort(); renderOffDates(); }
+    const input = document.getElementById('branch-offdate');
+    if (input.value && !offDates.includes(input.value)) { offDates.push(input.value); offDates.sort(); renderOffDates(); }
     input.value = '';
   });
 
-  // Modal
   function openModal(b) {
-    document.getElementById('modal-title').textContent = b ? 'تعديل حلاق' : 'إضافة حلاق';
-    document.getElementById('barber-id').value = b ? b.id : '';
-    document.getElementById('barber-name').value = b ? b.name : '';
-    document.getElementById('barber-specialty').value = b ? (b.specialty || '') : '';
-    document.getElementById('barber-sort').value = b ? (b.sort_order || 0) : 0;
-    document.getElementById('barber-branch').value = (b && b.branch_id != null) ? String(b.branch_id) : '';
-    document.getElementById('barber-start').value = (b && b.work_start != null) ? b.work_start : '';
-    document.getElementById('barber-end').value = (b && b.work_end != null) ? b.work_end : '';
+    document.getElementById('modal-title').textContent = b ? 'تعديل فرع' : 'إضافة فرع';
+    document.getElementById('branch-id').value = b ? b.id : '';
+    document.getElementById('branch-name').value = b ? b.name : '';
+    document.getElementById('branch-address').value = b ? (b.address || '') : '';
+    document.getElementById('branch-phone').value = b ? (b.phone || '') : '';
+    document.getElementById('branch-map').value = b ? (b.map_url || '') : '';
+    document.getElementById('branch-sort').value = b ? (b.sort_order || 0) : 0;
+    document.getElementById('branch-start').value = (b && b.work_start != null) ? b.work_start : '';
+    document.getElementById('branch-end').value = (b && b.work_end != null) ? b.work_end : '';
     setWorkdays(b ? b.work_days : '');
     offDates = b && b.off_dates ? String(b.off_dates).split(',').map(s => s.trim()).filter(Boolean) : [];
     renderOffDates();
     modal.classList.remove('hidden');
   }
-  function closeModal() { modal.classList.add('hidden'); }
+  const closeModal = () => modal.classList.add('hidden');
 
   document.getElementById('add-btn').addEventListener('click', () => openModal(null));
   document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -165,27 +147,25 @@
   modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
   document.getElementById('modal-save').addEventListener('click', async () => {
-    const id = document.getElementById('barber-id').value;
-    const name = document.getElementById('barber-name').value.trim();
-    const specialty = document.getElementById('barber-specialty').value.trim();
-    const sort_order = Number(document.getElementById('barber-sort').value) || 0;
-    const startV = document.getElementById('barber-start').value;
-    const endV = document.getElementById('barber-end').value;
-    if (!name) { showToast('الاسم مطلوب', 'error'); return; }
+    const id = document.getElementById('branch-id').value;
+    const name = document.getElementById('branch-name').value.trim();
+    if (!name) { showToast('اسم الفرع مطلوب', 'error'); return; }
 
-    const branchV = document.getElementById('barber-branch').value;
     const body = JSON.stringify({
-      name, specialty, sort_order,
-      branch_id: branchV === '' ? null : Number(branchV),
+      name,
+      address: document.getElementById('branch-address').value.trim(),
+      phone: document.getElementById('branch-phone').value.trim(),
+      map_url: document.getElementById('branch-map').value.trim(),
+      sort_order: Number(document.getElementById('branch-sort').value) || 0,
       work_days: getWorkdays(),
       off_dates: offDates.join(','),
-      work_start: startV === '' ? null : Number(startV),
-      work_end: endV === '' ? null : Number(endV),
+      work_start: document.getElementById('branch-start').value,
+      work_end: document.getElementById('branch-end').value,
     });
-    const url = id ? `/api/admin/barbers/${id}` : '/api/admin/barbers';
-    const method = id ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+      const res = await fetch(id ? `/api/admin/branches/${id}` : '/api/admin/branches', {
+        method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body,
+      });
       if (!res.ok) throw new Error();
       showToast('تم الحفظ');
       closeModal();
