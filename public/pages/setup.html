@@ -34,6 +34,34 @@
 
     <form id="setupForm" class="card" style="padding:1.75rem;">
 
+      <div class="section-title">💼 نوع النشاط</div>
+      <div class="form-group">
+        <label class="form-label">اختر نوع النشاط</label>
+        <select class="form-select" id="business_type">
+          <option value="barbershop">💈 صالون حلاقة رجالي</option>
+          <option value="beauty">💇‍♀️ صالون تجميل / سيدات</option>
+          <option value="spa">💆 مركز مساج / سبا</option>
+          <option value="custom">✏️ نشاط آخر (مسميات مخصصة)</option>
+        </select>
+        <div class="hint">يضبط المسميات في الموقع تلقائياً (يمكنك تعديلها بالأسفل).</div>
+      </div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">مسمى الموظف (مفرد)</label>
+          <input class="form-input" id="staff_label" placeholder="حلاق">
+          <div class="hint">بدون "ال" — مثال: حلاق، مصفف، معالج</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">مسمى الموظفين (جمع)</label>
+          <input class="form-input" id="staff_label_plural" placeholder="حلاقين">
+          <div class="hint">بدون "ال" — مثال: حلاقين، مصففين، معالجين</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">أيقونة الموظف</label>
+        <input class="form-input" id="staff_icon" maxlength="4" placeholder="✂️" style="max-width:120px;">
+      </div>
+
       <div class="section-title">🏷️ هوية الصالون</div>
       <div class="field-grid">
         <div class="form-group">
@@ -114,6 +142,21 @@
     const PRESETS = ['#c9a84c','#d4af37','#b76e79','#8e44ad','#2c98a0','#e74c3c','#27ae60','#2c3e50','#e91e63','#ff6b35'];
     let alreadyConfigured = false;
 
+    // Vertical presets → default wording/icon (still editable = "custom").
+    const TYPE_PRESETS = {
+      barbershop: { staff_label: 'حلاق',  staff_label_plural: 'حلاقين',  staff_icon: '✂️' },
+      beauty:     { staff_label: 'مصفف',  staff_label_plural: 'مصففين',  staff_icon: '💇‍♀️' },
+      spa:        { staff_label: 'معالج', staff_label_plural: 'معالجين', staff_icon: '💆' },
+    };
+    function applyTypePreset(type) {
+      const p = TYPE_PRESETS[type];
+      if (!p) return; // 'custom' → leave the owner's own words alone
+      document.getElementById('staff_label').value = p.staff_label;
+      document.getElementById('staff_label_plural').value = p.staff_label_plural;
+      document.getElementById('staff_icon').value = p.staff_icon;
+    }
+    document.getElementById('business_type').addEventListener('change', (e) => applyTypePreset(e.target.value));
+
     function toast(msg, type='success') {
       const c = document.getElementById('toast-container');
       const t = document.createElement('div');
@@ -154,7 +197,9 @@
         const s = await res.json();
         alreadyConfigured = s.configured === '1';
         const set = (id,v)=>{ if(v!==undefined&&v!==null) document.getElementById(id).value = v; };
-        ['salon_name','salon_name_en','tagline','logo_emoji','currency','phone','whatsapp','address','instagram','tiktok','facebook','hero_image'].forEach(k=>set(k,s[k]));
+        ['salon_name','salon_name_en','tagline','logo_emoji','currency','phone','whatsapp','address','instagram','tiktok','facebook','hero_image',
+         'business_type','staff_label','staff_label_plural','staff_icon'].forEach(k=>set(k,s[k]));
+        if (!s.staff_label) applyTypePreset(s.business_type || 'barbershop');
         if (s.brand_color) { colorInput.value = s.brand_color; applyLiveColor(s.brand_color); markActive(s.brand_color); }
         else markActive('#c9a84c');
         document.getElementById('logoPreview').textContent = s.logo_emoji || '✂️';
@@ -171,7 +216,8 @@
       e.preventDefault();
       const val = id => document.getElementById(id).value.trim();
       const settings = {};
-      ['salon_name','salon_name_en','tagline','logo_emoji','currency','phone','whatsapp','address','instagram','tiktok','facebook','hero_image'].forEach(k=>settings[k]=val(k));
+      ['salon_name','salon_name_en','tagline','logo_emoji','currency','phone','whatsapp','address','instagram','tiktok','facebook','hero_image',
+       'business_type','staff_label','staff_label_plural','staff_icon'].forEach(k=>settings[k]=val(k));
       settings.brand_color = colorInput.value;
       settings.home_description = settings.tagline;
 

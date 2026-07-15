@@ -64,7 +64,7 @@
 
   function render(barbers) {
     if (!barbers.length) {
-      listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">💈</div><h3>لا يوجد حلاقون بعد</h3><p>أضف أول حلاق ليتمكن العملاء من الاختيار.</p></div>';
+      listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">💈</div><h3>لا يوجد أعضاء بعد</h3><p>أضف أول عضو ليتمكن العملاء من الاختيار.</p></div>';
       return;
     }
     listEl.innerHTML = '';
@@ -94,7 +94,7 @@
         load();
       });
       card.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!confirm(`حذف الحلاق "${b.name}"؟`)) return;
+        if (!confirm(`حذف "${b.name}"؟`)) return;
         await fetch(`/api/admin/barbers/${b.id}`, { method: 'DELETE' });
         showToast('تم الحذف');
         load();
@@ -144,7 +144,7 @@
 
   // Modal
   function openModal(b) {
-    document.getElementById('modal-title').textContent = b ? 'تعديل حلاق' : 'إضافة حلاق';
+    document.getElementById('modal-title').textContent = b ? 'تعديل' : 'إضافة';
     document.getElementById('barber-id').value = b ? b.id : '';
     document.getElementById('barber-name').value = b ? b.name : '';
     document.getElementById('barber-specialty').value = b ? (b.specialty || '') : '';

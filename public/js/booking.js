@@ -305,14 +305,24 @@ async function loadBarbers(branchId) {
   layoutSteps();
 }
 
+// Bare staff noun for this salon's vertical (حلاق / مصفف / معالج).
+const staffWord = () => (window.getStaffLabel ? window.getStaffLabel() : 'حلاق');
+
+// Branding may land after the staff cards render — re-render then so the
+// vertical's wording ("أي مصفف متاح") replaces the default.
+document.addEventListener('branding:ready', () => {
+  if (!state.skipBarber && state.barbers.length) renderBarbers();
+});
+
 function renderBarbers() {
   const grid = document.getElementById('barbersGrid');
-  // "Any available barber" first, then each barber.
+  // "Any available <staff>" first, then each staff member.
+  const w = staffWord();
   const anyCard = `
     <div class="service-select-card" data-barber-id="any" onclick="selectBarber('any')">
       <div class="barber-avatar">✨</div>
-      <h3>أي حلاق متاح</h3>
-      <div class="text-muted" style="font-size:0.88rem;">نحجز لك أول حلاق متاح</div>
+      <h3>أي ${escapeHtml(w)} متاح</h3>
+      <div class="text-muted" style="font-size:0.88rem;">نحجز لك أول ${escapeHtml(w)} متاح</div>
     </div>`;
   const cards = state.barbers.map(b => `
     <div class="service-select-card" data-barber-id="${b.id}" onclick="selectBarber(${b.id})">
@@ -326,7 +336,7 @@ function renderBarbers() {
 
 function selectBarber(id) {
   if (id === 'any') {
-    state.selectedBarber = { id: 'any', name: 'أي حلاق متاح' };
+    state.selectedBarber = { id: 'any', name: `أي ${staffWord()} متاح` };
   } else {
     state.selectedBarber = state.barbers.find(b => b.id === id) || null;
   }

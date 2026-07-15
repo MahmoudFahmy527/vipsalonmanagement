@@ -155,6 +155,11 @@ const DEFAULT_SETTINGS = {
   tiktok:           '',
   facebook:         '',
   hero_image:       '',        // URL/path; empty → gradient fallback
+  // Vertical / terminology. Labels are stored BARE (no "ال"); the UI adds it.
+  business_type:      'barbershop', // barbershop | beauty | spa | custom
+  staff_label:        'حلاق',       // singular: حلاق / مصفف / معالج
+  staff_label_plural: 'حلاقين',     // plural:   حلاقين / مصففين / معالجين
+  staff_icon:         '✂️',
   instagram_posts:  '',        // newline/comma list of IG post URLs → official embeds
   instagram_embed:  '',        // raw widget embed code (Behold/LightWidget/…) → auto feed
   telegram_bot_token: '',      // owner's Telegram bot token (kept out of public settings)

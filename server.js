@@ -7,6 +7,7 @@ const fs = require('fs');
 const config = require('./config');
 const db = require('./database');
 const webpush = require('web-push');
+const SqliteSessionStore = require('./session-store');
 
 // Seed the first admin account (hashed) from env/config on first run.
 db.ensureAdmin(config.ADMIN_USERNAME, config.ADMIN_PASSWORD);
@@ -133,6 +134,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
+    // Sessions live in salon.db (on the persistent volume) so the owner stays
+    // logged in across redeploys — and MemoryStore's leak warning goes away.
+    store: new SqliteSessionStore(db.db),
     secret: config.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -706,6 +710,7 @@ const BRAND_KEYS = [
   'salon_name', 'salon_name_en', 'tagline', 'home_description', 'brand_color',
   'currency', 'logo_emoji', 'phone', 'whatsapp', 'address',
   'instagram', 'tiktok', 'facebook', 'hero_image',
+  'business_type', 'staff_label', 'staff_label_plural', 'staff_icon',
 ];
 
 app.post('/api/setup', (req, res) => {

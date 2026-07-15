@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>الحلاقين — صالونك</title>
+  <title data-staff-title>الحلاقين — صالونك</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
         <a href="/admin/branches" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الفروع</a>
         <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
         <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
-        <a href="/admin/barbers" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">الحلاقين</a>
+        <a href="/admin/barbers" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;" data-staff-plural>الحلاقين</a>
         <a href="/admin/reviews" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">التقييمات</a>
         <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
         <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
@@ -43,10 +43,10 @@
     <div class="container mt-2" style="max-width:820px;">
       <div class="action-bar flex-between" style="margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem;">
         <div>
-          <h2 style="margin:0;">الحلاقين</h2>
-          <p class="text-muted" style="margin:0;">أضف حلاقيك — سيختار العميل من بينهم، ولكل حلاق مواعيده الخاصة.</p>
+          <h2 style="margin:0;" data-staff-plural>الحلاقين</h2>
+          <p class="text-muted" style="margin:0;">أضف فريقك — سيختار العميل من بينهم، ولكل فرد مواعيده الخاصة.</p>
         </div>
-        <button class="btn btn-gold" id="add-btn">+ إضافة حلاق</button>
+        <button class="btn btn-gold" id="add-btn">+ إضافة</button>
       </div>
 
       <div id="barbers-list">
@@ -54,7 +54,7 @@
       </div>
 
       <p class="text-muted mt-3" style="font-size:0.9rem;">
-        💡 إذا لم تضف أي حلاق، سيتخطى العميل هذه الخطوة ويحجز مباشرة (تقويم واحد للصالون).
+        💡 إذا لم تضف أي فرد، سيتخطى العميل هذه الخطوة ويحجز مباشرة (تقويم واحد).
       </p>
     </div>
   </div>
@@ -86,7 +86,7 @@
         <div class="form-group">
           <label class="form-label">أيام العمل</label>
           <div class="workdays" id="barber-workdays"></div>
-          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">الأيام التي يعمل بها هذا الحلاق.</div>
+          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">الأيام التي يعمل بها.</div>
         </div>
 
         <div class="form-group">

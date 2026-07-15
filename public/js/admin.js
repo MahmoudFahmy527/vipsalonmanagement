@@ -323,7 +323,7 @@
           <div class="meta-item">⏱ <span class="value">${duration} د</span></div>
           <div class="meta-item">💇 <span class="value">${serviceName}</span></div>
           ${booking.branch_name ? `<div class="meta-item">🏢 <span class="value">${booking.branch_name}</span></div>` : ''}
-          ${booking.barber_name ? `<div class="meta-item">✂️ <span class="value">${booking.barber_name}</span></div>` : ''}
+          ${booking.barber_name ? `<div class="meta-item">${(window.SALON && window.SALON.staff_icon) || '✂️'} <span class="value">${booking.barber_name}</span></div>` : ''}
           <span class="${badgeClass}">${statusLabel}</span>
         </div>
         <div class="booking-actions">

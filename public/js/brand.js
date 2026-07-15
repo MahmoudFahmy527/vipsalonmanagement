@@ -67,8 +67,26 @@
 
     const name = s.salon_name || 'صالونك';
 
-    // Document title: keep page-specific prefix, swap the salon suffix.
-    if (document.title.includes('—')) {
+    // ---- Vertical terminology (barbershop / beauty salon / spa / custom) ----
+    // Labels are stored bare ("حلاق"); we add the definite article where needed,
+    // so one setting covers "اختر الحلاق", "أي حلاق متاح" and "الحلاقين".
+    // Runs BEFORE the title rewrite so a re-worded <title> keeps its new prefix.
+    const staff = s.staff_label || 'حلاق';
+    const staffPlural = s.staff_label_plural || 'حلاقين';
+    const the = (w) => 'ال' + w;
+
+    document.querySelectorAll('[data-staff-label]').forEach(el => { el.textContent = the(staff); });
+    document.querySelectorAll('[data-staff-plural]').forEach(el => { el.textContent = the(staffPlural); });
+    document.querySelectorAll('[data-staff-choose]').forEach(el => { el.textContent = `اختر ${the(staff)}`; });
+    if (s.staff_icon) {
+      document.querySelectorAll('[data-staff-icon]').forEach(el => { el.textContent = s.staff_icon; });
+    }
+
+    // Document title: pages whose title is the staff word (e.g. الحلاقين) rebuild
+    // it from the vertical; others keep their prefix and swap the salon suffix.
+    if (document.querySelector('title[data-staff-title]')) {
+      document.title = `${the(staffPlural)} — ${name}`;
+    } else if (document.title.includes('—')) {
       document.title = document.title.split('—')[0].trim() + ' — ' + name;
     } else {
       document.title = name;
@@ -121,8 +139,10 @@
     }
   }
 
-  // Helper other scripts can call: window.SALON?.currency
+  // Helpers other scripts can call.
   window.getCurrency = () => (window.SALON && window.SALON.currency) || 'ج.م';
+  // Bare staff noun for the salon's vertical, e.g. حلاق / مصفف / معالج.
+  window.getStaffLabel = () => (window.SALON && window.SALON.staff_label) || 'حلاق';
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', load);
