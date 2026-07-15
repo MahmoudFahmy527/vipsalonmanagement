@@ -11,6 +11,38 @@ const webpush = require('web-push');
 // Seed the first admin account (hashed) from env/config on first run.
 db.ensureAdmin(config.ADMIN_USERNAME, config.ADMIN_PASSWORD);
 
+/**
+ * Is the database sitting on a real mounted volume, or on the container's
+ * throwaway filesystem? Without a mounted volume every redeploy/restart wipes
+ * the salon's data — so we detect it and warn loudly instead of failing silently.
+ * Returns persistent: true | false | null (unknown, e.g. local dev on Windows).
+ */
+function storageInfo() {
+  // Must mirror database.js exactly, so we report the file actually in use.
+  const dbFile = path.resolve(process.env.DB_PATH || path.join(__dirname, 'salon.db'));
+  const dir = path.dirname(dbFile);
+  let persistent = null;
+  try {
+    if (process.platform === 'linux' && fs.existsSync('/proc/mounts')) {
+      const mounts = new Set(
+        fs.readFileSync('/proc/mounts', 'utf8')
+          .split('\n').map((l) => l.split(' ')[1]).filter(Boolean)
+      );
+      persistent = false;
+      let p = dir;
+      while (p && p !== '/') {            // '/' is the container overlay → not persistent
+        if (mounts.has(p)) { persistent = true; break; }
+        const parent = path.dirname(p);
+        if (parent === p) break;
+        p = parent;
+      }
+    }
+  } catch (_) { /* unknown */ }
+  let sizeBytes = 0;
+  try { sizeBytes = fs.statSync(dbFile).size; } catch (_) {}
+  return { dbFile, dir, persistent, sizeBytes };
+}
+
 // ── Web Push (installed-PWA background notifications) ──
 // Generate a VAPID keypair once and persist it in settings.
 (function initVapid() {
@@ -1121,6 +1153,32 @@ app.delete('/api/admin/barbers/:id', isAdmin, (req, res) => {
 });
 
 // ──────────────────────────────────────────────
+// ADMIN – DIAGNOSTICS (storage health)
+// ──────────────────────────────────────────────
+
+app.get('/api/admin/diagnostics', isAdmin, (_req, res) => {
+  try {
+    const s = storageInfo();
+    res.json({
+      dbFile: s.dbFile,
+      persistent: s.persistent,        // false = data is wiped on every redeploy
+      dbSizeBytes: s.sizeBytes,
+      uploadDir: config.UPLOAD_DIR,
+      counts: {
+        bookings: db.db.prepare('SELECT COUNT(*) n FROM bookings').get().n,
+        services: db.db.prepare('SELECT COUNT(*) n FROM services').get().n,
+        branches: db.db.prepare('SELECT COUNT(*) n FROM branches').get().n,
+        gallery: db.db.prepare('SELECT COUNT(*) n FROM gallery').get().n,
+      },
+      uptimeSec: Math.round(process.uptime()),
+    });
+  } catch (err) {
+    console.error('GET /api/admin/diagnostics error:', err);
+    res.status(500).json({ error: 'Failed to read diagnostics' });
+  }
+});
+
+// ──────────────────────────────────────────────
 // ADMIN – ANALYTICS
 // ──────────────────────────────────────────────
 
@@ -1301,6 +1359,22 @@ app.listen(config.PORT, () => {
   const configured = db.getSetting('configured') === '1';
   console.log(`\n  💈 ${name} — Salon Platform`);
   console.log(`  Server running on http://localhost:${config.PORT}`);
+
+  const s = storageInfo();
+  console.log(`  💾 Database: ${s.dbFile}`);
+  if (s.persistent === false) {
+    console.error('');
+    console.error('  ██████████████████████████████████████████████████████████████');
+    console.error('  ⚠️  EPHEMERAL STORAGE — ALL DATA WILL BE LOST ON NEXT DEPLOY!');
+    console.error(`  The database is NOT on a mounted volume (${s.dir}).`);
+    console.error('  Fix: attach a Volume mounted at /data to this service,');
+    console.error('       then re-run /setup. (Railway: Settings → Volumes)');
+    console.error('  ██████████████████████████████████████████████████████████████');
+    console.error('');
+  } else if (s.persistent === true) {
+    console.log('  ✅ Storage is on a persistent volume — data survives redeploys.');
+  }
+
   if (!configured) {
     console.log(`  ⚙  First run — open http://localhost:${config.PORT}/setup to brand this salon\n`);
   } else {

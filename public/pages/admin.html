@@ -138,6 +138,16 @@
 
   <div class="page-container">
     <div class="container">
+      <!-- Ephemeral-storage warning (shown only when data would be lost) -->
+      <div class="card mb-3" id="storage-warning" hidden
+           style="border-color:var(--danger);background:rgba(231,76,60,0.12);">
+        <h3 style="margin:0 0 0.4rem;color:var(--danger);">⚠️ تحذير: التخزين غير دائم</h3>
+        <p style="margin:0;color:var(--text-primary);">
+          قاعدة البيانات ليست على قرص دائم — <strong>كل البيانات ستُحذف عند أي تحديث أو إعادة تشغيل.</strong>
+          الحل: أضف Volume على المسار <code dir="ltr">/data</code> من إعدادات الاستضافة، ثم أعد الإعداد.
+        </p>
+      </div>
+
       <!-- Date Navigator -->
       <div class="date-picker mt-2 mb-2" id="date-picker" style="overflow-x:auto;white-space:nowrap;padding:0.5rem 0;"></div>
 

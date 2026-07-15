@@ -171,6 +171,18 @@
   // ----------------------------------------------------------
   // Barbers (filter + manual-reserve select)
   // ----------------------------------------------------------
+  // Warn the owner if the DB isn't on a persistent volume (data would be lost
+  // on every redeploy). `persistent: null` = couldn't tell → stay quiet.
+  async function checkStorage() {
+    try {
+      const d = await (await fetch('/api/admin/diagnostics')).json();
+      if (d && d.persistent === false) {
+        const el = document.getElementById('storage-warning');
+        if (el) el.hidden = false;
+      }
+    } catch (_) {}
+  }
+
   let branches = [];
   async function loadBranches() {
     try {
@@ -626,6 +638,7 @@
   renderDatePicker();
   populateTimeSelect(document.getElementById('reserve-time'));
   populateTimeSelect(document.getElementById('edit-time'));
+  checkStorage();
   loadBranches();
   loadBarbers();
   loadBookings();
