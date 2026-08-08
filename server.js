@@ -704,11 +704,14 @@ app.get('/api/reviews', (_req, res) => {
 
 app.post('/api/reviews', (req, res) => {
   try {
-    const { name, rating, review_text } = req.body;
+    const { name, rating, review_text, barber_id } = req.body;
     if (!name || !rating) {
       return res.status(400).json({ error: 'Name and rating are required' });
     }
-    const review = db.addReview(name, Number(rating), review_text);
+    // Only attribute to a real, active staff member; otherwise stays salon-wide.
+    let bid = null;
+    if (barber_id) { const b = db.getBarber(Number(barber_id)); if (b && b.is_active) bid = b.id; }
+    const review = db.addReview(name, Number(rating), review_text, bid);
     res.status(201).json({ success: true, review });
   } catch (err) {
     console.error('POST /api/reviews error:', err);
@@ -1348,6 +1351,97 @@ app.post('/api/admin/expenses', isAdmin, (req, res) => {
 app.delete('/api/admin/expenses/:id', isAdmin, (req, res) => {
   try { db.deleteExpense(Number(req.params.id)); res.json({ success: true }); }
   catch (err) { console.error('DEL expense:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+// ──────────────────────────────────────────────
+// STAFF PORTAL (magic-link auth; scoped to the staff member's own data)
+// ──────────────────────────────────────────────
+
+function isStaff(req, res, next) {
+  if (req.session && req.session.staffBarberId) return next();
+  return res.status(401).json({ error: 'staff auth required' });
+}
+
+// Magic link entry: /staff?t=<token> consumes the token into the session, then
+// redirects to a clean /staff. Without a token, the page loads and its JS decides
+// (via /api/staff/me) whether to show the portal or an access-denied message.
+app.get('/staff', (req, res) => {
+  const t = req.query.t;
+  if (t) {
+    const b = db.getBarberByToken(String(t));
+    if (b && b.is_active) {
+      req.session.staffBarberId = b.id;
+      return res.redirect('/staff');
+    }
+  }
+  res.sendFile(path.join(pagesDir, 'staff.html'));
+});
+
+app.post('/api/staff/logout', (req, res) => {
+  if (req.session) req.session.staffBarberId = null;
+  res.json({ success: true });
+});
+
+app.get('/api/staff/me', isStaff, (req, res) => {
+  try {
+    const b = db.getBarber(req.session.staffBarberId);
+    if (!b || !b.is_active) { req.session.staffBarberId = null; return res.status(401).json({ error: 'inactive' }); }
+    res.json({
+      barber: { id: b.id, name: b.name, specialty: b.specialty || '', branch_id: b.branch_id || null },
+      rating: db.barberRatingSummary(b.id),
+    });
+  } catch (err) { console.error('staff/me:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+app.get('/api/staff/bookings', isStaff, (req, res) => {
+  try { res.json(db.getBookingsByBarber(req.session.staffBarberId)); }
+  catch (err) { console.error('staff/bookings:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+app.get('/api/staff/reviews', isStaff, (req, res) => {
+  try { res.json(db.getReviewsByBarber(req.session.staffBarberId)); }
+  catch (err) { console.error('staff/reviews:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+app.get('/api/staff/income', isStaff, (req, res) => {
+  try {
+    const { from, to } = req.query;
+    res.json(finance.computeBarber(db, req.session.staffBarberId, { from, to }));
+  } catch (err) { console.error('staff/income:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+app.get('/api/staff/gallery', isStaff, (req, res) => {
+  try { res.json(db.getGalleryByBarber(req.session.staffBarberId)); }
+  catch (err) { console.error('staff/gallery:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+app.post('/api/staff/gallery', isStaff, (req, res) => {
+  upload.single('media')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      const type = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
+      const item = db.addGalleryItem({
+        filename: req.file.filename,
+        original_name: req.file.originalname,
+        type,
+        description: (req.body.description || '').slice(0, 200),
+        barber_id: req.session.staffBarberId,
+        status: 'approved',
+      });
+      res.status(201).json({ success: true, item });
+    } catch (innerErr) { console.error('staff gallery upload:', innerErr); res.status(500).json({ error: 'fail' }); }
+  });
+});
+
+app.delete('/api/staff/gallery/:id', isStaff, (req, res) => {
+  try {
+    const filename = db.deleteGalleryItemOwned(Number(req.params.id), req.session.staffBarberId);
+    if (!filename) return res.status(404).json({ error: 'not found' });
+    const filePath = path.join(config.UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ success: true });
+  } catch (err) { console.error('staff gallery delete:', err); res.status(500).json({ error: 'fail' }); }
 });
 
 // ──────────────────────────────────────────────

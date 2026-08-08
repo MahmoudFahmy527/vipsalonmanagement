@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadServicesPreview();
   loadGalleryPreview();
   loadReviews();
+  loadReviewBarbers();
 
   const reviewForm = document.getElementById('review-form');
   if (reviewForm) reviewForm.addEventListener('submit', handleReviewSubmit);
@@ -62,6 +63,20 @@ async function loadGalleryPreview() {
   }
 }
 
+/* ---------- Review: optional staff attribution ---------- */
+async function loadReviewBarbers() {
+  const group = document.getElementById('rev-barber-group');
+  const sel = document.getElementById('rev-barber');
+  if (!group || !sel) return;
+  try {
+    const barbers = await (await fetch('/api/barbers')).json();
+    if (!Array.isArray(barbers) || !barbers.length) return; // single-calendar salon → keep hidden
+    sel.insertAdjacentHTML('beforeend',
+      barbers.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join(''));
+    group.hidden = false;
+  } catch (_) { /* leave hidden on failure */ }
+}
+
 /* ---------- Reviews ---------- */
 async function loadReviews() {
   const list = document.getElementById('reviews-list');
@@ -86,10 +101,11 @@ function renderReviews(reviews) {
     const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
     const text = r.review_text || r.text || '';
     const name = r.name || r.customer_name || 'زائر';
+    const forStaff = r.barber_name ? ` <span class="text-muted" style="font-weight:400;">· ${esc(r.barber_name)}</span>` : '';
     return `<div class="review-card">
       <div class="review-stars">${stars}</div>
       ${text ? `<p>"${esc(text)}"</p>` : ''}
-      <strong>— ${esc(name)}</strong>
+      <strong>— ${esc(name)}${forStaff}</strong>
     </div>`;
   }).join('');
 }
@@ -99,13 +115,15 @@ async function handleReviewSubmit(e) {
   const name = document.getElementById('rev-name').value.trim();
   const rating = document.getElementById('rev-rating').value;
   const review_text = document.getElementById('rev-text').value.trim();
+  const barberSel = document.getElementById('rev-barber');
+  const barber_id = barberSel && barberSel.value ? Number(barberSel.value) : null;
   if (!name) { showToast('يرجى إدخال الاسم', 'error'); return; }
 
   try {
     const res = await fetch('/api/reviews', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, rating, review_text }),
+      body: JSON.stringify({ name, rating, review_text, barber_id }),
     });
     if (res.ok) {
       showToast('شكراً! تم إرسال تقييمك', 'success');

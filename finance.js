@@ -77,6 +77,30 @@ function computeSummary(db, { from, to, branchId } = {}) {
   };
 }
 
+// One staff member's own earnings breakdown for a range (used by the staff portal).
+function computeBarber(db, barberId, { from, to, branchId } = {}) {
+  const b = db.getBarber(Number(barberId));
+  if (!b) return null;
+  const days = daysBetween(from, to);
+  const revenue = db.bookingRevenue(from, to, branchId, b.id);
+  const hours = db.barberServiceHours(b.id, from, to);
+  const count = db.acceptedBookingCount(b.id, from, to);
+  const commission = b.commission_enabled ? revenue * (Number(b.commission_pct) || 0) / 100 : 0;
+  const salary = salaryForRange(b, hours, days);
+  const pay = commission + salary;
+  const govExpenses = db.sumExpensesByBarber(b.id, from, to);
+  return {
+    id: b.id, name: b.name,
+    range: { from: from || null, to: to || null, days },
+    revenue: round(revenue), hours: round(hours), count,
+    commission_enabled: !!b.commission_enabled, commission_pct: Number(b.commission_pct) || 0,
+    salary_type: b.salary_type || 'none', salary_amount: Number(b.salary_amount) || 0,
+    commission: round(commission), salary: round(salary),
+    earnings: round(pay),           // what the staff member takes home (commission + salary)
+    govExpenses: round(govExpenses), // deductions like iqama/insurance recorded against them
+  };
+}
+
 function round(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 
-module.exports = { computeSummary, salaryForRange, daysBetween };
+module.exports = { computeSummary, computeBarber, salaryForRange, daysBetween };

@@ -172,6 +172,40 @@ async function runSuite(run) {
   ok('portal link stable across calls', pl2 && pl2.token === pl1.token);
   ok('anon blocked from portal link', (await api(`/api/admin/barbers/${barberId}/portal-link`)).status === 401);
 
+  // ── Staff portal: magic-link auth + own-data scoping ──
+  const staffToken = pl1.token;
+  // Consume the magic link; capture the session cookie from the redirect.
+  const magic = await fetch(BASE + `/staff?t=${staffToken}`, { redirect: 'manual' });
+  const staffCookie = (magic.headers.get('set-cookie') || '').split(';')[0];
+  ok('magic link establishes a staff session', [301, 302, 303].includes(magic.status) && !!staffCookie, `status ${magic.status}`);
+  const me = await api('/api/staff/me', { cookie: staffCookie });
+  ok('staff/me returns own identity', me.status === 200 && me.json.barber.id === barberId, JSON.stringify(me.json));
+  const sbk = await api('/api/staff/bookings', { cookie: staffCookie });
+  ok('staff sees own bookings', sbk.status === 200 && Array.isArray(sbk.json));
+  ok('staff bookings include accepted sessions', sbk.json.filter((b) => b.status === 'accepted').length >= 3);
+  const sinc = (await api(`/api/staff/income?from=${decFrom}&to=${decTo}`, { cookie: staffCookie })).json;
+  ok('staff income breakdown scoped to self', sinc && sinc.id === barberId && sinc.revenue >= 300 && sinc.earnings > 0, JSON.stringify(sinc));
+  ok('staff earnings = commission + salary', sinc && Math.abs(sinc.earnings - (sinc.commission + sinc.salary)) < 0.01);
+  // Attributed review shows up in the staff's own review list.
+  await api('/api/reviews', { method: 'POST', body: { name: 'مقيّم_' + tag, rating: 5, review_text: 'ممتاز', barber_id: barberId } });
+  const srev = (await api('/api/staff/reviews', { cookie: staffCookie })).json;
+  ok('staff sees own attributed reviews', Array.isArray(srev) && srev.some((r) => r.rating === 5));
+  // Gallery: own list + ownership-guarded delete.
+  ok('staff gallery lists (own only)', Array.isArray((await api('/api/staff/gallery', { cookie: staffCookie })).json));
+  ok('staff cannot delete a non-owned gallery item', (await api('/api/staff/gallery/999999', { method: 'DELETE', cookie: staffCookie })).status === 404);
+  // Anon lockout on every staff surface.
+  ok('anon blocked from staff/me', (await api('/api/staff/me')).status === 401);
+  ok('anon blocked from staff bookings', (await api('/api/staff/bookings')).status === 401);
+  ok('anon blocked from staff income', (await api('/api/staff/income')).status === 401);
+  ok('anon blocked from staff gallery', (await api('/api/staff/gallery')).status === 401);
+  // An invalid magic token grants nothing.
+  const badMagic = await fetch(BASE + '/staff?t=not_a_real_token', { redirect: 'manual' });
+  const badCookie = (badMagic.headers.get('set-cookie') || '').split(';')[0];
+  ok('invalid magic token → no staff access', (await api('/api/staff/me', { cookie: badCookie })).status === 401);
+  // Logout ends the staff session.
+  await api('/api/staff/logout', { method: 'POST', cookie: staffCookie });
+  ok('staff logout revokes access', (await api('/api/staff/me', { cookie: staffCookie })).status === 401);
+
   // ── Privacy parity: public settings must not leak private keys ──
   const pub = (await api('/api/settings')).json;
   ok('public settings hide telegram token', !('telegram_bot_token' in pub));

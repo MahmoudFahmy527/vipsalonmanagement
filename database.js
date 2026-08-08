@@ -166,6 +166,9 @@ ensureColumn('barbers', 'portal_token', 'TEXT');
 // as 'pending' until the owner approves them.
 ensureColumn('gallery', 'status', "TEXT DEFAULT 'approved'");
 ensureColumn('gallery', 'submitter_name', 'TEXT');
+// Staff portal: gallery items and reviews can be attributed to a specific staff member.
+ensureColumn('gallery', 'barber_id', 'INTEGER');
+ensureColumn('reviews', 'barber_id', 'INTEGER');
 
 // ──────────────────────────────────────────────
 // Default (white-label) settings — seeded once.
@@ -369,10 +372,10 @@ function countPendingGallery() {
   return db.prepare("SELECT COUNT(*) AS n FROM gallery WHERE status = 'pending'").get().n;
 }
 
-function addGalleryItem({ filename, original_name, type, description, status, submitter_name }) {
+function addGalleryItem({ filename, original_name, type, description, status, submitter_name, barber_id }) {
   const stmt = db.prepare(
-    `INSERT INTO gallery (filename, original_name, type, description, status, submitter_name, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO gallery (filename, original_name, type, description, status, submitter_name, barber_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const info = stmt.run(
     filename,
@@ -381,9 +384,26 @@ function addGalleryItem({ filename, original_name, type, description, status, su
     description || '',
     status || 'approved',
     submitter_name || null,
+    barber_id || null,
     new Date().toISOString()
   );
   return db.prepare('SELECT * FROM gallery WHERE id = ?').get(info.lastInsertRowid);
+}
+
+// Gallery items belonging to one staff member (their own portfolio).
+function getGalleryByBarber(barberId) {
+  return db
+    .prepare("SELECT * FROM gallery WHERE barber_id = ? ORDER BY (status = 'pending') DESC, created_at DESC")
+    .all(Number(barberId));
+}
+
+// Delete a gallery item only if it belongs to this staff member; returns the
+// filename (for disk cleanup) or null when not owned / not found.
+function deleteGalleryItemOwned(id, barberId) {
+  const row = db.prepare('SELECT filename FROM gallery WHERE id = ? AND barber_id = ?').get(Number(id), Number(barberId));
+  if (!row) return null;
+  db.prepare('DELETE FROM gallery WHERE id = ? AND barber_id = ?').run(Number(id), Number(barberId));
+  return row.filename;
 }
 
 function approveGalleryItem(id) {
@@ -703,15 +723,47 @@ function deleteService(id) {
 // ──────────────────────────────────────────────
 
 function getAllReviews() {
-  return db.prepare('SELECT * FROM reviews ORDER BY created_at DESC').all();
+  return db.prepare(
+    `SELECT r.*, ba.name AS barber_name FROM reviews r
+     LEFT JOIN barbers ba ON r.barber_id = ba.id
+     ORDER BY r.created_at DESC`
+  ).all();
 }
 
-function addReview(name, rating, review_text) {
+function addReview(name, rating, review_text, barber_id) {
   const stmt = db.prepare(
-    `INSERT INTO reviews (name, rating, review_text) VALUES (?, ?, ?)`
+    `INSERT INTO reviews (name, rating, review_text, barber_id) VALUES (?, ?, ?, ?)`
   );
-  const info = stmt.run(name, rating, review_text || null);
+  const info = stmt.run(name, rating, review_text || null, barber_id || null);
   return db.prepare('SELECT * FROM reviews WHERE id = ?').get(info.lastInsertRowid);
+}
+
+// Reviews attributed to one staff member (their own, read-only view).
+function getReviewsByBarber(barberId) {
+  return db
+    .prepare('SELECT * FROM reviews WHERE barber_id = ? ORDER BY created_at DESC')
+    .all(Number(barberId));
+}
+function barberRatingSummary(barberId) {
+  const r = db
+    .prepare('SELECT COUNT(*) n, COALESCE(AVG(rating),0) avg FROM reviews WHERE barber_id = ?')
+    .get(Number(barberId));
+  return { count: r.n, avg: Math.round((Number(r.avg) || 0) * 10) / 10 };
+}
+
+// All bookings for one staff member, newest first (their schedule + history).
+function getBookingsByBarber(barberId) {
+  return db
+    .prepare(
+      `SELECT b.id, b.customer_name, b.date, b.time_slot, b.duration, b.status, b.note, b.created_at,
+              s.name AS service_name, s.price AS service_price, br.name AS branch_name
+       FROM bookings b
+       LEFT JOIN services s ON b.service_id = s.id
+       LEFT JOIN branches br ON b.branch_id = br.id
+       WHERE b.barber_id = ?
+       ORDER BY b.date DESC, b.time_slot DESC`
+    )
+    .all(Number(barberId));
 }
 
 function deleteReview(id) {
@@ -870,6 +922,8 @@ module.exports = {
   approveGalleryItem,
   updateGalleryDescription,
   deleteGalleryItem,
+  getGalleryByBarber,
+  deleteGalleryItemOwned,
   // Branches
   getActiveBranches,
   getAllBranches,
@@ -906,6 +960,10 @@ module.exports = {
   getAllReviews,
   addReview,
   deleteReview,
+  getReviewsByBarber,
+  barberRatingSummary,
+  // Staff portal
+  getBookingsByBarber,
   // Settings
   getSettings,
   getPublicSettings,
