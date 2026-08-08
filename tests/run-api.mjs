@@ -130,6 +130,48 @@ async function runSuite(run) {
   ok('loyalty reward due at target', loy.rewardDue === true && loy.progress === 3);
   ok('loyalty endpoint is public (anon)', loy.enabled === true);
 
+  // ── Finance: comp model, income/expenses, P&L, per-staff profitability ──
+  // Give the seeded barber a commission + monthly salary.
+  const upd = await api(`/api/admin/barbers/${barberId}`, { method: 'PUT', cookie: admin, body: {
+    name: 'حلاق_' + tag, branch_id: branchId,
+    commission_enabled: 1, commission_pct: 40, salary_type: 'monthly', salary_amount: 3000,
+  }});
+  ok('barber comp saved', upd.status === 200);
+  const decFrom = '2026-12-01', decTo = '2026-12-31';
+  // Manual income + a gov expense attributed to the barber.
+  const inc = await api('/api/admin/income', { method: 'POST', cookie: admin, body: { amount: 500, date: '2026-12-10', category: 'retail', note: 'بيع_' + tag } });
+  ok('add income 201', inc.status === 201);
+  const exp = await api('/api/admin/expenses', { method: 'POST', cookie: admin, body: { amount: 200, date: '2026-12-10', category: 'gov', note: 'إقامة_' + tag, barber_id: barberId } });
+  ok('add gov expense 201', exp.status === 201);
+
+  const fin = (await api(`/api/admin/finance?from=${decFrom}&to=${decTo}`, { cookie: admin })).json;
+  ok('finance summary shape', fin && fin.revenue && fin.expenses && typeof fin.netProfit === 'number', JSON.stringify(fin && fin.revenue));
+  // The 3 loyalty bookings (accepted, price 100) → ≥300 booking revenue per run.
+  ok('booking revenue counts accepted bookings', fin.revenue.bookings >= 300, `got ${fin.revenue.bookings}`);
+  ok('manual income reflected', fin.revenue.manual >= 500, `got ${fin.revenue.manual}`);
+  ok('revenue total = bookings + manual', Math.abs(fin.revenue.total - (fin.revenue.bookings + fin.revenue.manual)) < 0.01);
+  ok('gov expense in "other" bucket', fin.expenses.other >= 200, `got ${fin.expenses.other}`);
+  ok('labor (salary+commission) computed', fin.expenses.labor > 0, `got ${fin.expenses.labor}`);
+  const row = (fin.byBarber || []).find((b) => b.id === barberId);
+  ok('per-barber profitability row present', !!row, JSON.stringify(fin.byBarber));
+  ok('commission = 40% of that barber revenue', row && Math.abs(row.commission - row.revenue * 0.4) < 0.01, row && `${row.commission} vs ${row.revenue * 0.4}`);
+  ok('monthly salary prorated (>0)', row && row.salary > 0, row && `salary ${row.salary}`);
+  ok('barber gov expense attributed', row && row.govExpenses >= 200, row && `gov ${row.govExpenses}`);
+  ok('net profit = revenue - labor - other', Math.abs(fin.netProfit - (fin.revenue.total - fin.expenses.labor - fin.expenses.other)) < 0.01);
+  // Range filter excludes out-of-range data.
+  const finEmpty = (await api('/api/admin/finance?from=2099-01-01&to=2099-12-31', { cookie: admin })).json;
+  ok('empty range → zero revenue', finEmpty.revenue.bookings === 0 && finEmpty.revenue.manual === 0);
+  // Anon lockout on every finance surface.
+  ok('anon blocked from finance summary', (await api(`/api/admin/finance?from=${decFrom}&to=${decTo}`)).status === 401);
+  ok('anon blocked from add income', (await api('/api/admin/income', { method: 'POST', body: { amount: 1, date: decFrom } })).status === 401);
+  ok('anon blocked from add expense', (await api('/api/admin/expenses', { method: 'POST', body: { amount: 1, date: decFrom } })).status === 401);
+  // Staff portal magic link is generated and stable.
+  const pl1 = (await api(`/api/admin/barbers/${barberId}/portal-link`, { cookie: admin })).json;
+  ok('portal link issued', pl1 && typeof pl1.token === 'string' && pl1.path.includes(pl1.token));
+  const pl2 = (await api(`/api/admin/barbers/${barberId}/portal-link`, { cookie: admin })).json;
+  ok('portal link stable across calls', pl2 && pl2.token === pl1.token);
+  ok('anon blocked from portal link', (await api(`/api/admin/barbers/${barberId}/portal-link`)).status === 401);
+
   // ── Privacy parity: public settings must not leak private keys ──
   const pub = (await api('/api/settings')).json;
   ok('public settings hide telegram token', !('telegram_bot_token' in pub));

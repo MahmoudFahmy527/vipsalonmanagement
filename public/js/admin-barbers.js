@@ -142,6 +142,34 @@
     input.value = '';
   });
 
+  // ---- Compensation UI toggles ----
+  const commEnabled = document.getElementById('barber-commission-enabled');
+  const salaryType = document.getElementById('barber-salary-type');
+  commEnabled.addEventListener('change', () => {
+    document.getElementById('barber-commission-group').style.display = commEnabled.checked ? '' : 'none';
+  });
+  salaryType.addEventListener('change', () => {
+    document.getElementById('barber-salary-amount-group').style.display = salaryType.value === 'none' ? 'none' : '';
+  });
+
+  async function loadPortalLink(id) {
+    const block = document.getElementById('barber-portal-block');
+    const input = document.getElementById('barber-portal-link');
+    if (!id) { block.style.display = 'none'; return; }
+    try {
+      const d = await (await fetch(`/api/admin/barbers/${id}/portal-link`)).json();
+      input.value = location.origin + d.path;
+      block.style.display = '';
+    } catch (_) { block.style.display = 'none'; }
+  }
+  document.getElementById('barber-portal-copy').addEventListener('click', () => {
+    const input = document.getElementById('barber-portal-link');
+    input.select();
+    navigator.clipboard?.writeText(input.value).then(() => showToast('تم نسخ الرابط')).catch(() => {
+      try { document.execCommand('copy'); showToast('تم نسخ الرابط'); } catch (_) { showToast('انسخ يدوياً', 'error'); }
+    });
+  });
+
   // Modal
   function openModal(b) {
     document.getElementById('modal-title').textContent = b ? 'تعديل' : 'إضافة';
@@ -155,6 +183,18 @@
     setWorkdays(b ? b.work_days : '');
     offDates = b && b.off_dates ? String(b.off_dates).split(',').map(s => s.trim()).filter(Boolean) : [];
     renderOffDates();
+
+    // Compensation
+    const ce = !!(b && b.commission_enabled);
+    commEnabled.checked = ce;
+    document.getElementById('barber-commission-group').style.display = ce ? '' : 'none';
+    document.getElementById('barber-commission-pct').value = b ? (b.commission_pct || 0) : 0;
+    const st = (b && b.salary_type) ? b.salary_type : 'none';
+    salaryType.value = st;
+    document.getElementById('barber-salary-amount-group').style.display = st === 'none' ? 'none' : '';
+    document.getElementById('barber-salary-amount').value = b ? (b.salary_amount || 0) : 0;
+
+    loadPortalLink(b ? b.id : null);
     modal.classList.remove('hidden');
   }
   function closeModal() { modal.classList.add('hidden'); }
@@ -174,6 +214,7 @@
     if (!name) { showToast('الاسم مطلوب', 'error'); return; }
 
     const branchV = document.getElementById('barber-branch').value;
+    const salType = salaryType.value;
     const body = JSON.stringify({
       name, specialty, sort_order,
       branch_id: branchV === '' ? null : Number(branchV),
@@ -181,6 +222,10 @@
       off_dates: offDates.join(','),
       work_start: startV === '' ? null : Number(startV),
       work_end: endV === '' ? null : Number(endV),
+      commission_enabled: commEnabled.checked ? 1 : 0,
+      commission_pct: Number(document.getElementById('barber-commission-pct').value) || 0,
+      salary_type: salType,
+      salary_amount: salType === 'none' ? 0 : (Number(document.getElementById('barber-salary-amount').value) || 0),
     });
     const url = id ? `/api/admin/barbers/${id}` : '/api/admin/barbers';
     const method = id ? 'PUT' : 'POST';

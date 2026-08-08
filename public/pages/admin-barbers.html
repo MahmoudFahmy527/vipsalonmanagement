@@ -26,6 +26,7 @@
       </div>
       <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
+        <a href="/admin/finance" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المالية</a>
         <a href="/admin/stats" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإحصائيات</a>
         <a href="/admin/branches" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الفروع</a>
         <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
@@ -111,6 +112,48 @@
         <div class="form-group">
           <label class="form-label">الترتيب (اختياري)</label>
           <input class="form-input" id="barber-sort" type="number" value="0">
+        </div>
+
+        <!-- Compensation -->
+        <div style="border-top:1px solid var(--border-color);margin:0.5rem 0 1rem;padding-top:1rem;">
+          <h4 style="margin:0 0 0.75rem;color:var(--gold);">💰 الأجر والعمولة</h4>
+
+          <label class="flex" style="align-items:center;gap:0.6rem;cursor:pointer;margin-bottom:0.75rem;">
+            <input type="checkbox" id="barber-commission-enabled" style="width:18px;height:18px;">
+            <span>تفعيل العمولة على الإيراد</span>
+          </label>
+          <div class="form-group" id="barber-commission-group" style="display:none;">
+            <label class="form-label">نسبة العمولة (%)</label>
+            <input class="form-input" id="barber-commission-pct" type="number" min="0" max="100" step="1" value="0" placeholder="مثال: 40">
+            <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:0.25rem;">نسبة مئوية من إيراد حجوزاته المكتملة.</div>
+          </div>
+
+          <div class="grid-2" style="gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">نوع الراتب</label>
+              <select class="form-select" id="barber-salary-type">
+                <option value="none">بدون راتب</option>
+                <option value="hourly">بالساعة</option>
+                <option value="daily">يومي</option>
+                <option value="monthly">شهري</option>
+              </select>
+            </div>
+            <div class="form-group" id="barber-salary-amount-group" style="display:none;">
+              <label class="form-label">قيمة الراتب</label>
+              <input class="form-input" id="barber-salary-amount" type="number" min="0" step="1" value="0" placeholder="0">
+            </div>
+          </div>
+          <div class="hint" style="color:var(--text-tertiary);font-size:0.8rem;">الراتب بالساعة يُحتسب حسب ساعات جلساته، واليومي حسب أيام عمله، والشهري بالتناسب مع الفترة.</div>
+        </div>
+
+        <!-- Staff portal link -->
+        <div id="barber-portal-block" style="border-top:1px solid var(--border-color);margin:0.5rem 0 0;padding-top:1rem;display:none;">
+          <h4 style="margin:0 0 0.5rem;color:var(--gold);">🔗 رابط دخول الموظف</h4>
+          <p class="text-muted" style="margin:0 0 0.6rem;font-size:0.85rem;">رابط خاص يفتح صفحة الموظف ليرى حجوزاته وتقييماته ودخله ويعدّل معرضه. شاركه معه فقط.</p>
+          <div class="flex gap-2" style="align-items:center;flex-wrap:wrap;">
+            <input class="form-input" id="barber-portal-link" dir="ltr" readonly style="flex:1;min-width:200px;font-size:0.82rem;">
+            <button type="button" class="btn btn-outline btn-sm" id="barber-portal-copy">📋 نسخ</button>
+          </div>
         </div>
       </div>
       <div class="modal-footer">

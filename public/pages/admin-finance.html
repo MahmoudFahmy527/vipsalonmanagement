@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>التقييمات — الشرقاوي صالون</title>
+  <title>المالية — صالونك</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
@@ -11,63 +11,36 @@
   <script src="/js/brand.js"></script>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="الإدارة">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0a0a0b">
   <style>
-    .review-card {
-      padding: 1.25rem;
-      margin-bottom: 1rem;
-      border-radius: 8px;
-      background: var(--bg-secondary);
-      border-right: 4px solid var(--gold);
-    }
-    .review-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-    .review-author {
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-    .review-rating {
-      color: var(--gold);
-    }
-    .review-text {
-      color: var(--text-secondary);
-      font-size: 0.95rem;
-      margin-bottom: 1rem;
-    }
-    .review-date {
-      font-size: 0.8rem;
-      color: var(--text-tertiary);
-    }
-    .review-actions {
-      display: flex;
-      justify-content: flex-end;
-    }
+    .fin-tabs { display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+    .kpi { text-align:center; padding:1.2rem 1rem; }
+    .kpi .v { font-size:1.6rem; font-weight:900; line-height:1.1; }
+    .kpi .l { color:var(--text-secondary); font-size:0.85rem; margin-top:0.3rem; }
+    .fin-table { width:100%; border-collapse:collapse; }
+    .fin-table th, .fin-table td { padding:0.6rem 0.5rem; text-align:right; border-bottom:1px solid var(--border-color); font-size:0.9rem; white-space:nowrap; }
+    .fin-table th { color:var(--text-secondary); font-weight:700; }
+    .fin-scroll { overflow-x:auto; }
+    .txn-row { display:flex; align-items:center; justify-content:space-between; gap:0.75rem; padding:0.55rem 0; border-bottom:1px solid var(--border-color); }
+    .txn-row:last-child { border-bottom:none; }
   </style>
 </head>
 <body>
-  <!-- Navbar -->
   <nav class="navbar">
     <div class="container flex-between">
       <div class="flex" style="align-items:center;gap:0.75rem;">
-        <span style="font-size:1.5rem;">✂</span>
+        <span class="logo-icon" style="font-size:1.5rem;">✂</span>
         <span style="font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);" data-brand-name>صالونك</span>
       </div>
       <div class="flex" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <a href="/admin" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الحجوزات</a>
-        <a href="/admin/finance" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المالية</a>
+        <a href="/admin/finance" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">المالية</a>
         <a href="/admin/stats" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإحصائيات</a>
         <a href="/admin/branches" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الفروع</a>
         <a href="/admin/gallery" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">المعرض</a>
         <a href="/admin/services" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الخدمات</a>
         <a href="/admin/barbers" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;" data-staff-plural>الحلاقين</a>
-        <a href="/admin/reviews" class="admin-nav-item" style="color:var(--gold);font-weight:700;text-decoration:none;">التقييمات</a>
         <a href="/admin/settings" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">الإعدادات</a>
         <a href="/admin/qr" class="admin-nav-item" style="color:var(--text-secondary);text-decoration:none;">رمز QR</a>
         <button class="btn btn-outline btn-sm" id="logout-btn" style="margin-right:0.5rem;">تسجيل الخروج</button>
@@ -76,18 +49,24 @@
   </nav>
 
   <div class="page-container">
-    <div class="container mt-2">
-      <h2 style="color:var(--text-primary);margin-bottom:1.5rem;">إدارة التقييمات</h2>
-      
-      <div id="reviews-list">
-        <div class="flex-center mt-3">
-          <div class="spinner"></div>
-        </div>
+    <div class="container">
+      <div class="flex-between" style="flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+        <h2 style="margin:0;">المالية والأرباح</h2>
+        <select class="form-select" id="period" style="width:auto;min-width:150px;">
+          <option value="month">هذا الشهر</option>
+          <option value="last">الشهر الماضي</option>
+          <option value="year">هذه السنة</option>
+          <option value="all">كل الفترات</option>
+        </select>
+      </div>
+
+      <div id="fin-content">
+        <div class="flex-center mt-3"><div class="spinner"></div></div>
       </div>
     </div>
   </div>
 
   <div id="toast-container" class="toast-container"></div>
-  <script src="/js/admin-reviews.js"></script>
+  <script src="/js/admin-finance.js"></script>
 </body>
 </html>

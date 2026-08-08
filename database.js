@@ -99,6 +99,32 @@ db.exec(`
     sub        TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  -- Manual income entries (walk-ins, tips, retail). Booking revenue is computed
+  -- live from accepted bookings, so it is NOT duplicated here.
+  CREATE TABLE IF NOT EXISTS income (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount     REAL    NOT NULL,
+    date       TEXT    NOT NULL,
+    category   TEXT    DEFAULT 'other',
+    note       TEXT    DEFAULT '',
+    branch_id  INTEGER,
+    barber_id  INTEGER,
+    created_at TEXT    DEFAULT (datetime('now'))
+  );
+
+  -- Expenses: rent, supplies, and per-staff costs (gov fees like iqama/insurance).
+  -- Staff salary/commission are computed from their config, NOT stored here.
+  CREATE TABLE IF NOT EXISTS expenses (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount     REAL    NOT NULL,
+    date       TEXT    NOT NULL,
+    category   TEXT    DEFAULT 'other',
+    note       TEXT    DEFAULT '',
+    branch_id  INTEGER,
+    barber_id  INTEGER,
+    created_at TEXT    DEFAULT (datetime('now'))
+  );
 `);
 
 // ──────────────────────────────────────────────
@@ -128,6 +154,14 @@ ensureColumn('barbers', 'work_days', "TEXT DEFAULT ''");
 ensureColumn('barbers', 'off_dates', "TEXT DEFAULT ''");
 ensureColumn('barbers', 'work_start', 'INTEGER');
 ensureColumn('barbers', 'work_end', 'INTEGER');
+// Barber compensation (for profitability): commission (optional %) and/or a
+// salary paid hourly/daily/monthly. Gov/other per-barber costs live in expenses.
+ensureColumn('barbers', 'commission_enabled', 'INTEGER DEFAULT 0');
+ensureColumn('barbers', 'commission_pct', 'REAL DEFAULT 0');
+ensureColumn('barbers', 'salary_type', "TEXT DEFAULT 'none'");   // none|hourly|daily|monthly
+ensureColumn('barbers', 'salary_amount', 'REAL DEFAULT 0');
+// Staff portal access — a random token shared as a magic link (/staff?t=…).
+ensureColumn('barbers', 'portal_token', 'TEXT');
 // Gallery moderation: admin uploads are 'approved'; customer submissions land
 // as 'pending' until the owner approves them.
 ensureColumn('gallery', 'status', "TEXT DEFAULT 'approved'");
@@ -470,23 +504,49 @@ function getBarber(id) {
   return db.prepare('SELECT * FROM barbers WHERE id = ?').get(id);
 }
 
+function getBarberByToken(token) {
+  if (!token) return null;
+  return db.prepare('SELECT * FROM barbers WHERE portal_token = ?').get(token);
+}
+
+// Generate (once) and return a barber's staff-portal magic-link token.
+function ensureBarberToken(id) {
+  const b = getBarber(id);
+  if (!b) return null;
+  if (b.portal_token) return b.portal_token;
+  const token = 's_' + crypto.randomBytes(16).toString('hex');
+  db.prepare('UPDATE barbers SET portal_token = ? WHERE id = ?').run(token, id);
+  return token;
+}
+
 const barberWorksOn = entityWorksOn;
 
-function createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id }) {
+const compFields = (b) => [
+  b.commission_enabled ? 1 : 0,
+  Number(b.commission_pct) || 0,
+  ['none', 'hourly', 'daily', 'monthly'].includes(b.salary_type) ? b.salary_type : 'none',
+  Number(b.salary_amount) || 0,
+];
+
+function createBarber(b) {
   const info = db
-    .prepare(`INSERT INTO barbers (name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(name, specialty || '', sort_order || 0, work_days || '', off_dates || '',
-         normHour(work_start), normHour(work_end), branch_id || null, new Date().toISOString());
+    .prepare(`INSERT INTO barbers (name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id,
+              commission_enabled, commission_pct, salary_type, salary_amount, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(b.name, b.specialty || '', b.sort_order || 0, b.work_days || '', b.off_dates || '',
+         normHour(b.work_start), normHour(b.work_end), b.branch_id || null,
+         ...compFields(b), new Date().toISOString());
   return db.prepare('SELECT * FROM barbers WHERE id = ?').get(info.lastInsertRowid);
 }
 
-function updateBarber(id, { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id }) {
+function updateBarber(id, b) {
   return db
     .prepare(`UPDATE barbers SET name = ?, specialty = ?, sort_order = ?,
-              work_days = ?, off_dates = ?, work_start = ?, work_end = ?, branch_id = ? WHERE id = ?`)
-    .run(name, specialty || '', sort_order || 0, work_days || '', off_dates || '',
-         normHour(work_start), normHour(work_end), branch_id || null, id);
+              work_days = ?, off_dates = ?, work_start = ?, work_end = ?, branch_id = ?,
+              commission_enabled = ?, commission_pct = ?, salary_type = ?, salary_amount = ? WHERE id = ?`)
+    .run(b.name, b.specialty || '', b.sort_order || 0, b.work_days || '', b.off_dates || '',
+         normHour(b.work_start), normHour(b.work_end), b.branch_id || null,
+         ...compFields(b), id);
 }
 
 function toggleBarber(id) {
@@ -497,6 +557,97 @@ function toggleBarber(id) {
 
 function deleteBarber(id) {
   return db.prepare('DELETE FROM barbers WHERE id = ?').run(id);
+}
+
+// ──────────────────────────────────────────────
+// Finance helpers (income / expenses / revenue)
+// ──────────────────────────────────────────────
+
+function rangeClause(from, to, prefix = '') {
+  const parts = [];
+  const params = [];
+  if (from) { parts.push(`${prefix}date >= ?`); params.push(String(from)); }
+  if (to) { parts.push(`${prefix}date <= ?`); params.push(String(to)); }
+  return { where: parts.length ? ' AND ' + parts.join(' AND ') : '', params };
+}
+
+function addIncome({ amount, date, category, note, branch_id, barber_id }) {
+  const info = db
+    .prepare('INSERT INTO income (amount, date, category, note, branch_id, barber_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(Number(amount) || 0, date, category || 'other', note || '', branch_id || null, barber_id || null, new Date().toISOString());
+  return db.prepare('SELECT * FROM income WHERE id = ?').get(info.lastInsertRowid);
+}
+function listIncome(from, to, branchId) {
+  const r = rangeClause(from, to);
+  let sql = 'SELECT i.*, br.name AS branch_name, ba.name AS barber_name FROM income i LEFT JOIN branches br ON i.branch_id=br.id LEFT JOIN barbers ba ON i.barber_id=ba.id WHERE 1=1' + r.where;
+  const params = [...r.params];
+  if (isSet(branchId)) { sql += ' AND i.branch_id = ?'; params.push(Number(branchId)); }
+  return db.prepare(sql + ' ORDER BY i.date DESC, i.id DESC').all(...params);
+}
+function deleteIncome(id) { return db.prepare('DELETE FROM income WHERE id = ?').run(id); }
+
+function addExpense({ amount, date, category, note, branch_id, barber_id }) {
+  const info = db
+    .prepare('INSERT INTO expenses (amount, date, category, note, branch_id, barber_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(Number(amount) || 0, date, category || 'other', note || '', branch_id || null, barber_id || null, new Date().toISOString());
+  return db.prepare('SELECT * FROM expenses WHERE id = ?').get(info.lastInsertRowid);
+}
+function listExpenses(from, to, branchId) {
+  const r = rangeClause(from, to);
+  let sql = 'SELECT e.*, br.name AS branch_name, ba.name AS barber_name FROM expenses e LEFT JOIN branches br ON e.branch_id=br.id LEFT JOIN barbers ba ON e.barber_id=ba.id WHERE 1=1' + r.where;
+  const params = [...r.params];
+  if (isSet(branchId)) { sql += ' AND e.branch_id = ?'; params.push(Number(branchId)); }
+  return db.prepare(sql + ' ORDER BY e.date DESC, e.id DESC').all(...params);
+}
+function deleteExpense(id) { return db.prepare('DELETE FROM expenses WHERE id = ?').run(id); }
+
+const num = (v) => Number(v) || 0;
+
+// Sum of manual income in range (optional branch).
+function sumIncome(from, to, branchId) {
+  const r = rangeClause(from, to);
+  let sql = 'SELECT COALESCE(SUM(amount),0) v FROM income WHERE 1=1' + r.where;
+  const params = [...r.params];
+  if (isSet(branchId)) { sql += ' AND branch_id = ?'; params.push(Number(branchId)); }
+  return num(db.prepare(sql).get(...params).v);
+}
+function sumExpenses(from, to, branchId) {
+  const r = rangeClause(from, to);
+  let sql = 'SELECT COALESCE(SUM(amount),0) v FROM expenses WHERE 1=1' + r.where;
+  const params = [...r.params];
+  if (isSet(branchId)) { sql += ' AND branch_id = ?'; params.push(Number(branchId)); }
+  return num(db.prepare(sql).get(...params).v);
+}
+function sumExpensesByBarber(barberId, from, to) {
+  const r = rangeClause(from, to);
+  return num(db.prepare('SELECT COALESCE(SUM(amount),0) v FROM expenses WHERE barber_id = ?' + r.where).get(barberId, ...r.params).v);
+}
+function expensesByCategory(from, to, branchId) {
+  const r = rangeClause(from, to);
+  let sql = 'SELECT category, COALESCE(SUM(amount),0) v FROM expenses WHERE 1=1' + r.where;
+  const params = [...r.params];
+  if (isSet(branchId)) { sql += ' AND branch_id = ?'; params.push(Number(branchId)); }
+  return db.prepare(sql + ' GROUP BY category ORDER BY v DESC').all(...params);
+}
+
+// Booking revenue = accepted bookings' service prices in range (optional branch/barber).
+function bookingRevenue(from, to, branchId, barberId) {
+  const r = rangeClause(from, to, 'b.');
+  let sql = "SELECT COALESCE(SUM(s.price),0) v FROM bookings b JOIN services s ON b.service_id=s.id WHERE b.status='accepted'" + r.where;
+  const params = [...r.params];
+  if (isSet(branchId)) { sql += ' AND b.branch_id = ?'; params.push(Number(branchId)); }
+  if (isSet(barberId)) { sql += ' AND b.barber_id = ?'; params.push(Number(barberId)); }
+  return num(db.prepare(sql).get(...params).v);
+}
+// Service hours delivered by a barber (accepted bookings' durations) — for hourly pay.
+function barberServiceHours(barberId, from, to) {
+  const r = rangeClause(from, to, 'b.');
+  const v = db.prepare("SELECT COALESCE(SUM(b.duration),0) mins FROM bookings b WHERE b.status='accepted' AND b.barber_id = ?" + r.where).get(barberId, ...r.params).mins;
+  return num(v) / 60;
+}
+function acceptedBookingCount(barberId, from, to) {
+  const r = rangeClause(from, to, 'b.');
+  return num(db.prepare("SELECT COUNT(*) n FROM bookings b WHERE b.status='accepted' AND b.barber_id = ?" + r.where).get(barberId, ...r.params).n);
 }
 
 // ──────────────────────────────────────────────
@@ -732,11 +883,18 @@ module.exports = {
   getActiveBarbers,
   getAllBarbers,
   getBarber,
+  getBarberByToken,
+  ensureBarberToken,
   barberWorksOn,
   createBarber,
   updateBarber,
   toggleBarber,
   deleteBarber,
+  // Finance
+  addIncome, listIncome, deleteIncome, sumIncome,
+  addExpense, listExpenses, deleteExpense, sumExpenses,
+  sumExpensesByBarber, expensesByCategory,
+  bookingRevenue, barberServiceHours, acceptedBookingCount,
   // Services
   getActiveServices,
   getAllServices,

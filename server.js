@@ -8,6 +8,7 @@ const config = require('./config');
 const db = require('./database');
 const webpush = require('web-push');
 const SqliteSessionStore = require('./session-store');
+const finance = require('./finance');
 
 // Seed the first admin account (hashed) from env/config on first run.
 db.ensureAdmin(config.ADMIN_USERNAME, config.ADMIN_PASSWORD);
@@ -346,6 +347,11 @@ app.get('/admin/branches', (req, res) => {
 app.get('/admin/stats', (req, res) => {
   if (!req.session || !req.session.isAdmin) return res.redirect('/login');
   res.sendFile(path.join(pagesDir, 'admin-stats.html'));
+});
+
+app.get('/admin/finance', (req, res) => {
+  if (!req.session || !req.session.isAdmin) return res.redirect('/login');
+  res.sendFile(path.join(pagesDir, 'admin-finance.html'));
 });
 
 app.get('/admin/reviews', (req, res) => {
@@ -1220,9 +1226,8 @@ app.get('/api/admin/barbers', isAdmin, (_req, res) => {
 
 app.post('/api/admin/barbers', isAdmin, (req, res) => {
   try {
-    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
-    const barber = db.createBarber({ name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id });
+    if (!req.body || !req.body.name) return res.status(400).json({ error: 'name is required' });
+    const barber = db.createBarber(req.body); // reads schedule + compensation fields
     res.status(201).json({ success: true, barber });
   } catch (err) {
     console.error('POST /api/admin/barbers error:', err);
@@ -1232,13 +1237,24 @@ app.post('/api/admin/barbers', isAdmin, (req, res) => {
 
 app.put('/api/admin/barbers/:id', isAdmin, (req, res) => {
   try {
-    const { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
-    db.updateBarber(Number(req.params.id), { name, specialty, sort_order, work_days, off_dates, work_start, work_end, branch_id });
+    if (!req.body || !req.body.name) return res.status(400).json({ error: 'name is required' });
+    db.updateBarber(Number(req.params.id), req.body);
     res.json({ success: true });
   } catch (err) {
     console.error('PUT /api/admin/barbers/:id error:', err);
     res.status(500).json({ error: 'Failed to update barber' });
+  }
+});
+
+// Generate (or fetch) a staff member's magic-link for their portal.
+app.get('/api/admin/barbers/:id/portal-link', isAdmin, (req, res) => {
+  try {
+    const token = db.ensureBarberToken(Number(req.params.id));
+    if (!token) return res.status(404).json({ error: 'not found' });
+    res.json({ token, path: `/staff?t=${token}` });
+  } catch (err) {
+    console.error('portal-link error:', err);
+    res.status(500).json({ error: 'fail' });
   }
 });
 
@@ -1286,6 +1302,52 @@ app.get('/api/admin/diagnostics', isAdmin, (_req, res) => {
     console.error('GET /api/admin/diagnostics error:', err);
     res.status(500).json({ error: 'Failed to read diagnostics' });
   }
+});
+
+// ──────────────────────────────────────────────
+// ADMIN – FINANCE (income / expenses / P&L)
+// ──────────────────────────────────────────────
+
+app.get('/api/admin/finance', isAdmin, (req, res) => {
+  try {
+    const { from, to, branch } = req.query;
+    res.json(finance.computeSummary(db, { from, to, branchId: branch }));
+  } catch (err) {
+    console.error('GET /api/admin/finance error:', err);
+    res.status(500).json({ error: 'Failed to compute finance' });
+  }
+});
+
+app.get('/api/admin/income', isAdmin, (req, res) => {
+  try { res.json(db.listIncome(req.query.from, req.query.to, req.query.branch)); }
+  catch (err) { console.error('GET income:', err); res.status(500).json({ error: 'fail' }); }
+});
+app.post('/api/admin/income', isAdmin, (req, res) => {
+  try {
+    const { amount, date } = req.body || {};
+    if (!(Number(amount) > 0) || !date) return res.status(400).json({ error: 'amount و date مطلوبان' });
+    res.status(201).json({ success: true, income: db.addIncome(req.body) });
+  } catch (err) { console.error('POST income:', err); res.status(500).json({ error: 'fail' }); }
+});
+app.delete('/api/admin/income/:id', isAdmin, (req, res) => {
+  try { db.deleteIncome(Number(req.params.id)); res.json({ success: true }); }
+  catch (err) { console.error('DEL income:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+app.get('/api/admin/expenses', isAdmin, (req, res) => {
+  try { res.json(db.listExpenses(req.query.from, req.query.to, req.query.branch)); }
+  catch (err) { console.error('GET expenses:', err); res.status(500).json({ error: 'fail' }); }
+});
+app.post('/api/admin/expenses', isAdmin, (req, res) => {
+  try {
+    const { amount, date } = req.body || {};
+    if (!(Number(amount) > 0) || !date) return res.status(400).json({ error: 'amount و date مطلوبان' });
+    res.status(201).json({ success: true, expense: db.addExpense(req.body) });
+  } catch (err) { console.error('POST expense:', err); res.status(500).json({ error: 'fail' }); }
+});
+app.delete('/api/admin/expenses/:id', isAdmin, (req, res) => {
+  try { db.deleteExpense(Number(req.params.id)); res.json({ success: true }); }
+  catch (err) { console.error('DEL expense:', err); res.status(500).json({ error: 'fail' }); }
 });
 
 // ──────────────────────────────────────────────
