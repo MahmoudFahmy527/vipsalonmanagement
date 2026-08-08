@@ -79,17 +79,13 @@
 
   <div class="page-container">
     <div class="container mt-2">
-      <h2 style="color:var(--text-primary);margin-bottom:1.5rem;">رمز QR للصالون</h2>
-      
-      <div class="qr-container">
-        <h3 class="qr-title">الشرقاوي صالون</h3>
-        <p class="qr-subtitle">امسح الرمز لزيارة موقعنا وحجز موعدك</p>
-        
-        <div id="qrcode"></div>
-        
-        <button id="download-btn" class="btn btn-gold">
-          تنزيل كصورة
-        </button>
+      <h2 style="color:var(--text-primary);margin-bottom:0.5rem;">رموز QR</h2>
+      <p class="text-muted" style="margin-bottom:1.5rem;">
+        اطبع رمز الصالون العام، أو رمزاً خاصاً بكل <span data-staff-label>حلاق</span> — فعند مسحه يبدأ العميل الحجز مع ذلك
+        <span data-staff-label>الحلاق</span> مباشرةً.
+      </p>
+      <div id="qr-grid" class="gallery-grid">
+        <div class="flex-center" style="grid-column:1/-1;"><div class="spinner"></div></div>
       </div>
     </div>
   </div>

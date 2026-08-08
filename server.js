@@ -628,6 +628,23 @@ app.get('/api/my-bookings', (req, res) => {
   }
 });
 
+// Loyalty punch-card progress for a device token (public).
+app.get('/api/loyalty', (req, res) => {
+  try {
+    const enabled = db.getSetting('loyalty_enabled') === '1';
+    const target = Math.max(1, Number(db.getSetting('loyalty_target')) || 10);
+    const reward = db.getSetting('loyalty_reward') || 'خدمة مجانية';
+    if (!enabled) return res.json({ enabled: false });
+    const visits = db.countAcceptedByToken(req.query.token);
+    const inCycle = visits % target;                  // progress within the current card
+    const rewardDue = visits > 0 && inCycle === 0;    // a full card is complete
+    res.json({ enabled: true, target, reward, visits, progress: rewardDue ? target : inCycle, rewardDue });
+  } catch (err) {
+    console.error('GET /api/loyalty error:', err);
+    res.status(500).json({ error: 'Failed to fetch loyalty' });
+  }
+});
+
 // Gallery (public — approved items only)
 app.get('/api/gallery', (_req, res) => {
   try {
@@ -828,14 +845,66 @@ app.get('/api/admin/bookings/:date', isAdmin, (req, res) => {
     if (branchId) { sql += ' AND b.branch_id = ?'; params.push(Number(branchId)); }
     sql += ' ORDER BY b.time_slot';
     const rows = db.db.prepare(sql).all(...params);
-    // Flag returning customers (booked before under the same phone).
+    const loyaltyOn = db.getSetting('loyalty_enabled') === '1';
+    const loyaltyTarget = Math.max(1, Number(db.getSetting('loyalty_target')) || 10);
     for (const b of rows) {
+      // Flag returning customers (booked before under the same phone).
       b.is_returning = db.isReturningCustomer(b.customer_phone, b.id);
+      // Flag a completed loyalty card for this customer.
+      if (loyaltyOn && b.customer_phone && b.customer_phone !== '-') {
+        const v = db.countAcceptedByPhone(b.customer_phone);
+        b.reward_due = v > 0 && v % loyaltyTarget === 0;
+      }
     }
     res.json(rows);
   } catch (err) {
     console.error('GET /api/admin/bookings error:', err);
     res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+// Export all bookings as a CSV (optionally ?from=YYYY-MM-DD&to=YYYY-MM-DD).
+// UTF-8 BOM so Excel renders Arabic; downloads as an attachment.
+app.get('/api/admin/bookings.csv', isAdmin, (req, res) => {
+  try {
+    const { from, to } = req.query;
+    let sql =
+      `SELECT b.date, b.time_slot, b.customer_name, b.customer_phone, b.status, b.created_at,
+              s.name AS service_name, s.price AS service_price,
+              br.name AS barber_name, bx.name AS branch_name
+       FROM bookings b
+       LEFT JOIN services s ON b.service_id = s.id
+       LEFT JOIN barbers br ON b.barber_id = br.id
+       LEFT JOIN branches bx ON b.branch_id = bx.id
+       WHERE 1=1`;
+    const params = [];
+    if (from) { sql += ' AND b.date >= ?'; params.push(String(from)); }
+    if (to) { sql += ' AND b.date <= ?'; params.push(String(to)); }
+    sql += ' ORDER BY b.date DESC, b.time_slot';
+    const rows = db.db.prepare(sql).all(...params);
+
+    const STATUS = { pending: 'قيد الانتظار', accepted: 'مقبول', rejected: 'مرفوض', reserved: 'محجوز' };
+    const cell = (v) => {
+      const str = v == null ? '' : String(v);
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const header = ['التاريخ', 'الوقت', 'العميل', 'الهاتف', 'الخدمة', 'السعر', 'الفرع', 'الموظف', 'الحالة', 'وقت الإنشاء'];
+    const lines = [header.join(',')];
+    for (const r of rows) {
+      lines.push([
+        r.date, r.time_slot, r.customer_name, r.customer_phone,
+        r.service_name || '', r.service_price != null ? r.service_price : '',
+        r.branch_name || '', r.barber_name || '',
+        STATUS[r.status] || r.status, r.created_at || '',
+      ].map(cell).join(','));
+    }
+    const csv = '﻿' + lines.join('\r\n');   // BOM so Excel detects UTF-8
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="bookings-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('GET /api/admin/bookings.csv error:', err);
+    res.status(500).json({ error: 'Failed to export bookings' });
   }
 });
 
@@ -995,6 +1064,42 @@ app.get('/api/admin/services', isAdmin, (_req, res) => {
   } catch (err) {
     console.error('GET /api/admin/services error:', err);
     res.status(500).json({ error: 'Failed to fetch services' });
+  }
+});
+
+// Starter service menus per vertical. Prices are 0 (the owner sets them);
+// durations reflect the trade. Existing service names are skipped.
+const SERVICE_PRESETS = {
+  barbershop: [
+    ['قص شعر', 30], ['حلاقة ذقن', 20], ['قص شعر + ذقن', 45],
+    ['صبغة شعر', 45], ['حمام كريم', 30], ['تحديد ذقن', 15],
+  ],
+  beauty: [
+    ['قص وتصفيف', 45], ['صبغة شعر', 90], ['استشوار', 30], ['مكياج', 60],
+    ['منيكير', 45], ['باديكير', 45], ['تنظيف بشرة', 60], ['إزالة شعر بالشمع', 30],
+  ],
+  spa: [
+    ['مساج استرخائي (60 د)', 60], ['مساج علاجي (90 د)', 90],
+    ['مساج بالحجر الساخن', 75], ['مساج عطري', 60], ['ريفلكسولوجي', 45],
+    ['جلسة سبا كاملة', 120],
+  ],
+};
+
+app.post('/api/admin/services/import-presets', isAdmin, (req, res) => {
+  try {
+    const type = (req.body && req.body.type) || db.getSetting('business_type') || 'barbershop';
+    const presets = SERVICE_PRESETS[type] || SERVICE_PRESETS.barbershop;
+    const existing = new Set(db.getAllServices().map((s) => s.name));
+    let added = 0;
+    for (const [name, duration] of presets) {
+      if (existing.has(name)) continue;
+      db.createService({ name, price: 0, duration, category: 'other' });
+      added += 1;
+    }
+    res.json({ success: true, added, type });
+  } catch (err) {
+    console.error('POST /api/admin/services/import-presets error:', err);
+    res.status(500).json({ error: 'Failed to import presets' });
   }
 });
 

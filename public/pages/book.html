@@ -44,10 +44,27 @@
       <p>اختر الخدمة والموعد المناسب لك</p>
     </div>
 
+    <!-- QR lock banner (barber/branch fixed via a scanned QR) -->
+    <div class="card mb-3" id="lockBanner" hidden
+         style="border-color:var(--border-hover);background:rgba(var(--brand-rgb),0.08);display:flex;align-items:center;gap:0.6rem;">
+      <span style="font-size:1.3rem;">📌</span>
+      <strong class="lock-text" style="color:var(--brand);"></strong>
+    </div>
+
     <!-- Welcome-back banner (returning customer, from device memory) -->
     <div class="welcome-back card" id="welcomeBack" hidden>
       <span>👋 أهلاً بعودتك يا <strong class="wb-name"></strong>!</span>
       <button type="button" class="wb-reset" onclick="forgetDevice()">مش إنت؟</button>
+    </div>
+
+    <!-- Loyalty punch card -->
+    <div class="card mb-3" id="loyaltyCard" hidden>
+      <div class="flex-between" style="flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="margin:0;">🎁 بطاقة الولاء</h3>
+        <span class="text-muted" id="loyalty-count" style="font-size:0.9rem;"></span>
+      </div>
+      <div class="punch-row" id="loyalty-dots"></div>
+      <p class="text-muted" id="loyalty-note" style="margin:0.6rem 0 0;font-size:0.88rem;"></p>
     </div>
 
     <!-- Returning customer's own bookings -->

@@ -11,11 +11,13 @@ const state = {
   branches: [],
   selectedBranch: null,
   skipBranch: false,   // true when the salon has 0–1 branches
+  lockedBranch: false, // true when a QR/deep-link fixed the branch
   services: [],
   selectedService: null,
   barbers: [],
   selectedBarber: null,
-  skipBarber: false,   // true when this branch has no staff configured
+  skipBarber: false,   // true when this branch has no staff configured (or barber is locked)
+  lockedBarber: false, // true when a QR/deep-link fixed the barber
   selectedDate: null,
   selectedSlot: null,
 };
@@ -118,6 +120,37 @@ async function loadMyBookings(token) {
 
     panel.querySelector('.mybk-list').innerHTML = items;
     panel.hidden = false;
+  } catch (_) { /* silent */ }
+}
+
+/* ---------- Loyalty punch card ---------- */
+async function loadLoyalty() {
+  const card = document.getElementById('loyaltyCard');
+  if (!card) return;
+  const d = getDevice();
+  const token = d && d.token ? d.token : '';
+  try {
+    const info = await (await fetch(`/api/loyalty?token=${encodeURIComponent(token)}`)).json();
+    if (!info || !info.enabled) return;
+
+    const target = info.target;
+    const filled = info.progress || 0;
+    let dots = '';
+    for (let i = 0; i < target; i++) {
+      if (i < filled) dots += '<div class="punch filled">✓</div>';
+      else if (i === target - 1) dots += '<div class="punch reward">🎁</div>';
+      else dots += `<div class="punch">${i + 1}</div>`;
+    }
+    document.getElementById('loyalty-dots').innerHTML = dots;
+    document.getElementById('loyalty-count').textContent = `${filled} / ${target}`;
+
+    const note = document.getElementById('loyalty-note');
+    if (info.rewardDue) {
+      note.innerHTML = `🎉 أكملت البطاقة! مكافأتك: <strong>${escapeHtml(info.reward)}</strong> — أخبر الكاشير.`;
+    } else {
+      note.textContent = `احجز ${target - filled} ${target - filled === 1 ? 'مرة' : 'مرات'} أخرى للحصول على: ${info.reward}`;
+    }
+    card.hidden = false;
   } catch (_) { /* silent */ }
 }
 
@@ -640,16 +673,67 @@ function buildWhatsappButton(name, phone, dateLabel) {
   else container.appendChild(a);
 }
 
+/* ---------- QR / deep-link pre-selection ----------
+   A barber's QR points at /book?barber=<id> (and a branch QR at /book?branch=<id>).
+   Scanning it locks that barber/branch and drops the customer straight into
+   picking a service → date → time, so a walk-in books with that exact barber. */
+async function applyDeepLink(params) {
+  const barberId = params.get('barber');
+  const branchId = params.get('branch');
+
+  if (barberId) {
+    let all = [];
+    try { all = await (await fetch('/api/barbers')).json(); } catch (_) {}
+    const b = Array.isArray(all) && all.find((x) => String(x.id) === String(barberId));
+    if (b) {
+      state.selectedBarber = b;
+      state.lockedBarber = true;
+      state.skipBarber = true;                 // hide the barber-choice step
+      if (b.branch_id) {
+        const br = state.branches.find((x) => x.id === b.branch_id);
+        if (br) { state.selectedBranch = br; state.lockedBranch = true; state.skipBranch = true; }
+      }
+      showLockBanner();
+      return;
+    }
+  }
+
+  if (branchId) {
+    const br = state.branches.find((x) => String(x.id) === String(branchId));
+    if (br) {
+      state.selectedBranch = br;
+      state.lockedBranch = true;
+      state.skipBranch = true;
+      await loadBarbers(br.id);                // staff for this branch
+      showLockBanner();
+    }
+  }
+}
+
+function showLockBanner() {
+  const el = document.getElementById('lockBanner');
+  if (!el) return;
+  const parts = [];
+  if (state.selectedBarber) parts.push(`💈 ${escapeHtml(state.selectedBarber.name)}`);
+  if (state.selectedBranch && state.lockedBranch) parts.push(`🏢 ${escapeHtml(state.selectedBranch.name)}`);
+  if (!parts.length) return;
+  el.querySelector('.lock-text').innerHTML = 'حجزك مع ' + parts.join(' · ');
+  el.hidden = false;
+}
+
 /* ---------- Initialize ---------- */
 document.addEventListener('DOMContentLoaded', async () => {
   await loadBranches();  // decides skipBranch (and auto-picks a lone branch)
-  // Staff are per-branch: with a branch step, they load after the branch is
-  // chosen; otherwise load them now for the (single/absent) branch.
-  if (state.skipBranch) {
+  await applyDeepLink(new URLSearchParams(window.location.search)); // QR lock
+
+  // Staff are per-branch: load them now unless a specific barber is already
+  // locked, or a branch step still needs to be chosen first.
+  if (!state.lockedBarber && state.skipBranch) {
     await loadBarbers(state.selectedBranch ? state.selectedBranch.id : null);
   }
   layoutSteps();
   goToStep(state.skipBranch ? 2 : 1); // start at branch, or straight at service
   loadServices();
   initReturningCustomer();
+  loadLoyalty();
 });

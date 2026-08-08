@@ -164,6 +164,10 @@ const DEFAULT_SETTINGS = {
   instagram_embed:  '',        // raw widget embed code (Behold/LightWidget/…) → auto feed
   telegram_bot_token: '',      // owner's Telegram bot token (kept out of public settings)
   telegram_chat_id: '',        // owner's Telegram chat id
+  // Loyalty punch card
+  loyalty_enabled: '0',        // '1' turns it on
+  loyalty_target:  '10',       // visits needed for a reward
+  loyalty_reward:  'خدمة مجانية 🎁',
   // Salon-wide opening schedule (24h clock; close may cross midnight).
   open_hour:        '',        // '' → fall back to config/env SLOT_START_HOUR
   close_hour:       '',        // '' → fall back to config/env SLOT_END_HOUR
@@ -259,6 +263,16 @@ function getBookingsByToken(token) {
        ORDER BY b.date DESC, b.time_slot DESC`
     )
     .all(token);
+}
+
+// Completed (accepted) visits — used for the loyalty punch card.
+function countAcceptedByToken(token) {
+  if (!token) return 0;
+  return db.prepare("SELECT COUNT(*) n FROM bookings WHERE customer_token = ? AND status = 'accepted'").get(token).n;
+}
+function countAcceptedByPhone(phone) {
+  if (!phone || phone === '-') return 0;
+  return db.prepare("SELECT COUNT(*) n FROM bookings WHERE customer_phone = ? AND status = 'accepted'").get(phone).n;
 }
 
 /**
@@ -692,6 +706,8 @@ module.exports = {
   createBooking,
   getBookingsByToken,
   isReturningCustomer,
+  countAcceptedByToken,
+  countAcceptedByPhone,
   updateBookingStatus,
   updateBookingTime,
   deleteBooking,

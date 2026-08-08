@@ -278,6 +278,7 @@
         customerTag = booking.is_returning
           ? '<span class="customer-tag returning">عميل عائد</span>'
           : '<span class="customer-tag new">جديد</span>';
+        if (booking.reward_due) customerTag += '<span class="customer-tag reward">🎁 مكافأة</span>';
       }
 
       // WhatsApp appointment reminder (upcoming bookings with a real phone).

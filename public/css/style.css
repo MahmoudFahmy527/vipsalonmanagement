@@ -569,6 +569,13 @@ table th { color: var(--text-secondary); font-weight: 700; font-size: 0.9rem; }
 }
 .wb-reset:hover { border-color: var(--border-hover); color: var(--text-primary); }
 
+/* Loyalty punch card */
+.punch-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.punch { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--border-color); color: var(--text-tertiary); font-size: 0.9rem; font-weight: 700; }
+.punch.filled { background: var(--brand); border-color: var(--brand); color: #14110a; }
+.punch.reward { border-color: var(--brand); color: var(--brand); border-style: dashed; }
+
 .mybk { margin-bottom: 1.5rem; }
 .mybk-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .mybk-row {
@@ -580,6 +587,7 @@ table th { color: var(--text-secondary); font-weight: 700; font-size: 0.9rem; }
 .customer-tag { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; margin-inline-start: 0.4rem; vertical-align: middle; }
 .customer-tag.returning { background: rgba(46,204,113,0.15); color: var(--success); }
 .customer-tag.new { background: rgba(var(--brand-rgb),0.15); color: var(--brand); }
+.customer-tag.reward { background: rgba(46,204,113,0.18); color: var(--success); }
 
 /* Photo-submission upload zone + moderation */
 .gallery-submit-bar { display: flex; justify-content: center; margin-bottom: 1.5rem; }

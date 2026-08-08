@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('instagram_embed').value = settings.instagram_embed || '';
         document.getElementById('telegram_bot_token').value = settings.telegram_bot_token || '';
         document.getElementById('telegram_chat_id').value = settings.telegram_chat_id || '';
+        document.getElementById('loyalty_enabled').checked = settings.loyalty_enabled === '1';
+        document.getElementById('loyalty_target').value = settings.loyalty_target || '10';
+        document.getElementById('loyalty_reward').value = settings.loyalty_reward || '';
       })
       .catch(() => showToast('حدث خطأ أثناء تحميل الإعدادات', 'error'));
   }
@@ -53,6 +56,16 @@ document.addEventListener('DOMContentLoaded', () => {
       await putSetting('instagram_posts', document.getElementById('instagram_posts').value.trim());
       await putSetting('instagram_embed', document.getElementById('instagram_embed').value.trim());
       showToast('تم حفظ إعدادات إنستجرام');
+    } catch (_) { showToast('تعذر الحفظ', 'error'); }
+  });
+
+  // Loyalty
+  document.getElementById('save-loyalty').addEventListener('click', async () => {
+    try {
+      await putSetting('loyalty_enabled', document.getElementById('loyalty_enabled').checked ? '1' : '0');
+      await putSetting('loyalty_target', String(Number(document.getElementById('loyalty_target').value) || 10));
+      await putSetting('loyalty_reward', document.getElementById('loyalty_reward').value.trim() || 'خدمة مجانية');
+      showToast('تم حفظ بطاقة الولاء');
     } catch (_) { showToast('تعذر الحفظ', 'error'); }
   });
 

@@ -129,6 +129,27 @@
         </div>
       </div>
 
+      <!-- Loyalty punch card -->
+      <div class="card mb-3">
+        <h3 style="margin-top:0;">🎁 بطاقة الولاء</h3>
+        <p class="text-muted" style="margin-top:0;font-size:0.88rem;">كافئ العملاء المنتظمين — بعد عدد من الزيارات المكتملة يحصلون على مكافأة.</p>
+        <label class="flex" style="align-items:center;gap:0.6rem;cursor:pointer;margin-bottom:0.9rem;">
+          <input type="checkbox" id="loyalty_enabled" style="width:18px;height:18px;">
+          <span>تفعيل بطاقة الولاء</span>
+        </label>
+        <div class="field-grid" style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;">
+          <div class="form-group">
+            <label class="form-label">عدد الزيارات للمكافأة</label>
+            <input class="form-input" id="loyalty_target" type="number" min="2" max="100" value="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label">المكافأة</label>
+            <input class="form-input" id="loyalty_reward" placeholder="مثال: قصة شعر مجانية 🎁">
+          </div>
+        </div>
+        <button type="button" class="btn btn-gold" id="save-loyalty">حفظ</button>
+      </div>
+
       <!-- Change password -->
       <div class="card">
         <h3 style="margin-top:0;">🔐 تغيير كلمة المرور</h3>

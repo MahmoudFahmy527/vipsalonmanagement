@@ -231,6 +231,22 @@
   // ----------------------------------------------------------
   // Add Service
   // ----------------------------------------------------------
+  document.getElementById('import-presets-btn').addEventListener('click', async () => {
+    if (!confirm('إضافة قائمة خدمات مقترحة حسب نوع نشاطك؟ يمكنك تعديل الأسعار والأسماء بعدها.')) return;
+    try {
+      const res = await fetch('/api/admin/services/import-presets', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.added ? `تمت إضافة ${data.added} خدمة — عدّل الأسعار` : 'كل الخدمات المقترحة موجودة بالفعل');
+        loadServices();
+      } else {
+        showToast(data.error || 'تعذر الاستيراد', 'error');
+      }
+    } catch (_) {
+      showToast('حدث خطأ', 'error');
+    }
+  });
+
   document.getElementById('add-service-btn').addEventListener('click', () => {
     serviceModalTitle.textContent = 'إضافة خدمة جديدة';
     serviceEditId.value = '';
