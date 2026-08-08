@@ -3,14 +3,19 @@
    ============================================================ */
 
 const CATEGORIES = {
-  haircut:  { name: 'قص الشعر', icon: '💇' },
-  beard:    { name: 'اللحية', icon: '🧔' },
-  skincare: { name: 'العناية بالبشرة', icon: '✨' },
-  package:  { name: 'الباقات', icon: '🎁' },
-  other:    { name: 'أخرى', icon: '💈' },
+  haircut:  { name: 'قص الشعر', name_en: 'Haircut', icon: '💇' },
+  beard:    { name: 'اللحية', name_en: 'Beard', icon: '🧔' },
+  skincare: { name: 'العناية بالبشرة', name_en: 'Skincare', icon: '✨' },
+  package:  { name: 'الباقات', name_en: 'Packages', icon: '🎁' },
+  other:    { name: 'أخرى', name_en: 'Other', icon: '💈' },
 };
 
 const CATEGORY_ORDER = ['haircut', 'beard', 'skincare', 'package', 'other'];
+
+const L = () => (window.I18N && window.I18N.lang) || 'ar';
+const tr = (k) => (window.t ? window.t(k) : k);
+const svcName = (s) => (L() === 'en' && s && s.name_en) ? s.name_en : (s ? s.name : '');
+const catName = (info) => (L() === 'en' && info.name_en) ? info.name_en : info.name;
 
 /* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
@@ -38,8 +43,7 @@ async function loadServices() {
       content.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">💈</div>
-          <h3>لا توجد خدمات حالياً</h3>
-          <p>سيتم إضافة خدمات قريباً</p>
+          <h3>${tr('no_services')}</h3>
         </div>`;
       return;
     }
@@ -50,12 +54,14 @@ async function loadServices() {
     content.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">⚠️</div>
-        <h3>تعذر تحميل الخدمات</h3>
-        <p>يرجى المحاولة لاحقاً</p>
+        <h3>${tr('load_services_failed')}</h3>
       </div>`;
-    showToast('تعذر تحميل الخدمات', 'error');
+    showToast(tr('load_services_failed'), 'error');
   }
 }
+
+// Re-render when the language toggles.
+document.addEventListener('lang:changed', loadServices);
 
 /* ---------- Group & Render ---------- */
 function renderGrouped(services) {
@@ -78,7 +84,7 @@ function renderGrouped(services) {
       <div class="category-section reveal">
         <div class="category-header">
           <span class="category-icon">${catInfo.icon}</span>
-          <h2>${catInfo.name}</h2>
+          <h2>${catName(catInfo)}</h2>
         </div>
         <div class="grid-2">
           ${grouped[catKey].map(s => renderServiceCard(s, catKey)).join('')}
@@ -96,7 +102,7 @@ function renderGrouped(services) {
       <div class="category-section reveal">
         <div class="category-header">
           <span class="category-icon">${catInfo.icon}</span>
-          <h2>${catInfo.name}</h2>
+          <h2>${catName(catInfo)}</h2>
         </div>
         <div class="grid-2">
           ${grouped[catKey].map(s => renderServiceCard(s, catKey)).join('')}
@@ -114,16 +120,16 @@ function renderServiceCard(service, category) {
 
   return `
     <div class="service-card ${isPackage ? 'package-card' : ''} card-hover">
-      ${isPackage ? '<span class="service-category-badge">باقة مميزة ⭐</span>' : ''}
-      <h3>${service.name}</h3>
+      ${isPackage ? `<span class="service-category-badge">${L() === 'en' ? 'Premium package ⭐' : 'باقة مميزة ⭐'}</span>` : ''}
+      <h3>${svcName(service)}</h3>
       ${service.description ? `<p>${service.description}</p>` : ''}
       <div class="service-meta">
         <div class="service-price">
           ${service.price} <span class="currency">${window.getCurrency ? window.getCurrency() : 'ج.م'}</span>
         </div>
-        <div class="service-duration">⏱ ${service.duration} دقيقة</div>
+        <div class="service-duration">⏱ ${service.duration} ${tr('minutes')}</div>
       </div>
-      <a href="/book?service=${id}" class="btn btn-gold btn-sm w-full mt-2">احجز الآن</a>
+      <a href="/book?service=${id}" class="btn btn-gold btn-sm w-full mt-2" data-i18n="nav_book">${tr('nav_book')}</a>
     </div>
   `;
 }

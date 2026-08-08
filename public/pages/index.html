@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
   <link href="/css/style.css" rel="stylesheet">
   <script src="/js/brand.js"></script>
+  <script src="/js/i18n.js"></script>
 </head>
 <body>
 
@@ -20,10 +21,11 @@
     <div class="navbar-inner">
       <a href="/" class="navbar-logo"><span class="logo-icon">✂️</span> صالونك</a>
       <div class="navbar-links" id="navLinks">
-        <a href="#services">الخدمات</a>
-        <a href="#gallery">المعرض</a>
-        <a href="#reviews">التقييمات</a>
-        <a href="/book" class="active">احجز الآن</a>
+        <a href="#services" data-i18n="nav_services">الخدمات</a>
+        <a href="#gallery" data-i18n="nav_gallery">المعرض</a>
+        <a href="#reviews" data-i18n="nav_reviews">التقييمات</a>
+        <a href="/book" class="active" data-i18n="nav_book">احجز الآن</a>
+        <a href="#" data-lang-toggle class="lang-toggle">EN</a>
       </div>
       <div class="navbar-toggle" onclick="document.getElementById('navLinks').classList.toggle('open')">
         <span></span><span></span><span></span>
@@ -37,7 +39,7 @@
     <p class="hero-subtitle" data-setting="salon_name_en" dir="ltr">YOUR SALON</p>
     <p id="hero-description" data-setting="tagline">أناقتك تبدأ من عندنا — خبرة، دقة، وأسلوب يليق بك</p>
 
-    <a href="/book" class="btn btn-gold" style="font-size:1.15rem;padding:0.9rem 2.2rem;">احجز موعدك الآن</a>
+    <a href="/book" class="btn btn-gold" style="font-size:1.15rem;padding:0.9rem 2.2rem;" data-i18n="hero_cta">احجز موعدك الآن</a>
 
     <div class="social-links">
       <a data-social="instagram" href="#" target="_blank" rel="noopener" class="social-icon" aria-label="Instagram">
@@ -55,70 +57,70 @@
   <!-- Services preview -->
   <section id="services" class="section">
     <div class="container">
-      <div class="page-header"><h2>خدماتنا</h2><p>أفضل خدمات العناية بالمظهر بأعلى جودة</p></div>
+      <div class="page-header"><h2 data-i18n="services_title">خدماتنا</h2><p data-i18n="services_sub">أفضل خدمات العناية بالمظهر بأعلى جودة</p></div>
       <div class="service-select-grid" id="services-preview">
         <div class="flex-center" style="grid-column:1/-1;"><div class="spinner"></div></div>
       </div>
-      <div class="text-center mt-3"><a href="/services" class="btn btn-outline">عرض جميع الخدمات</a></div>
+      <div class="text-center mt-3"><a href="/services" class="btn btn-outline" data-i18n="view_all_services">عرض جميع الخدمات</a></div>
     </div>
   </section>
 
   <!-- Gallery preview -->
   <section id="gallery" class="section bg-light">
     <div class="container">
-      <div class="page-header"><h2>معرض الأعمال</h2><p>شاهد أحدث أعمالنا</p></div>
+      <div class="page-header"><h2 data-i18n="gallery_title">معرض الأعمال</h2><p data-i18n="gallery_sub">شاهد أحدث أعمالنا</p></div>
       <div class="gallery-grid" id="gallery-preview">
         <div class="flex-center" style="grid-column:1/-1;"><div class="spinner"></div></div>
       </div>
-      <div class="text-center mt-3"><a href="/gallery" class="btn btn-outline">عرض المعرض الكامل</a></div>
+      <div class="text-center mt-3"><a href="/gallery" class="btn btn-outline" data-i18n="view_full_gallery">عرض المعرض الكامل</a></div>
     </div>
   </section>
 
   <!-- Instagram -->
   <section id="instagram-section" class="section" hidden>
     <div class="container">
-      <div class="page-header"><h2>📸 إنستجرام</h2><p>تابع أحدث أعمالنا</p></div>
+      <div class="page-header"><h2 data-i18n="ig_title">📸 إنستجرام</h2><p data-i18n="ig_sub">تابع أحدث أعمالنا</p></div>
       <div id="instagram-feed" class="ig-feed"></div>
-      <div class="text-center mt-3"><a data-social="instagram" href="#" target="_blank" rel="noopener" class="btn btn-outline">تابعنا على إنستجرام</a></div>
+      <div class="text-center mt-3"><a data-social="instagram" href="#" target="_blank" rel="noopener" class="btn btn-outline" data-i18n="ig_follow">تابعنا على إنستجرام</a></div>
     </div>
   </section>
 
   <!-- Reviews -->
   <section id="reviews" class="section">
     <div class="container">
-      <div class="page-header"><h2>آراء العملاء</h2></div>
+      <div class="page-header"><h2 data-i18n="reviews_title">آراء العملاء</h2></div>
       <div class="reviews-grid" id="reviews-list">
         <div class="flex-center" style="grid-column:1/-1;"><div class="spinner"></div></div>
       </div>
 
       <div class="review-form-container card">
-        <h3 class="text-center">أضف تقييمك</h3>
+        <h3 class="text-center" data-i18n="add_review">أضف تقييمك</h3>
         <form id="review-form">
           <div class="form-group">
-            <label class="form-label">الاسم</label>
-            <input type="text" id="rev-name" class="form-input" required placeholder="اسمك">
+            <label class="form-label" data-i18n="rev_name">الاسم</label>
+            <input type="text" id="rev-name" class="form-input" required placeholder="اسمك" data-i18n-ph="rev_name_ph">
           </div>
           <div class="form-group">
-            <label class="form-label">التقييم</label>
+            <label class="form-label" data-i18n="rev_rating">التقييم</label>
             <select id="rev-rating" class="form-select" required>
-              <option value="5">⭐⭐⭐⭐⭐ ممتاز</option>
-              <option value="4">⭐⭐⭐⭐ جيد جداً</option>
-              <option value="3">⭐⭐⭐ جيد</option>
-              <option value="2">⭐⭐ مقبول</option>
-              <option value="1">⭐ ضعيف</option>
+              <option value="5" data-i18n="rate_5">⭐⭐⭐⭐⭐ ممتاز</option>
+              <option value="4" data-i18n="rate_4">⭐⭐⭐⭐ جيد جداً</option>
+              <option value="3" data-i18n="rate_3">⭐⭐⭐ جيد</option>
+              <option value="2" data-i18n="rate_2">⭐⭐ مقبول</option>
+              <option value="1" data-i18n="rate_1">⭐ ضعيف</option>
             </select>
           </div>
           <div class="form-group" id="rev-barber-group" hidden>
-            <label class="form-label" data-staff-choose>الحلاق (اختياري)</label>
+            <label class="form-label" data-i18n="rev_staff">الحلاق (اختياري)</label>
             <select id="rev-barber" class="form-select">
-              <option value="">— تقييم عام للصالون —</option>
+              <option value="" data-i18n="rev_staff_any">— تقييم عام للصالون —</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">رأيك (اختياري)</label>
-            <textarea id="rev-text" class="form-textarea" rows="3" placeholder="أخبرنا عن تجربتك..."></textarea>
+            <label class="form-label" data-i18n="rev_text">رأيك (اختياري)</label>
+            <textarea id="rev-text" class="form-textarea" rows="3" placeholder="أخبرنا عن تجربتك..." data-i18n-ph="rev_text_ph"></textarea>
           </div>
-          <button type="submit" class="btn btn-gold w-full">إرسال التقييم</button>
+          <button type="submit" class="btn btn-gold w-full" data-i18n="rev_submit">إرسال التقييم</button>
         </form>
       </div>
     </div>
@@ -127,17 +129,17 @@
   <!-- Contact / WhatsApp -->
   <section id="contact-section" class="section bg-light" hidden>
     <div class="container text-center">
-      <div class="page-header"><h2>تواصل معنا</h2></div>
+      <div class="page-header"><h2 data-i18n="contact_title">تواصل معنا</h2></div>
       <p class="text-muted" data-setting="address"></p>
       <div class="flex-center gap-2 mt-3" style="flex-wrap:wrap;">
-        <a id="contact-whatsapp" class="btn btn-success" target="_blank" rel="noopener" hidden>💬 واتساب</a>
-        <a id="contact-phone" class="btn btn-outline" hidden>📞 اتصل بنا</a>
+        <a id="contact-whatsapp" class="btn btn-success" target="_blank" rel="noopener" hidden data-i18n="whatsapp">💬 واتساب</a>
+        <a id="contact-phone" class="btn btn-outline" hidden data-i18n="call_us">📞 اتصل بنا</a>
       </div>
     </div>
   </section>
 
   <footer class="footer">
-    <p>© <span id="year"></span> <span class="footer-brand">صالونك</span> — جميع الحقوق محفوظة</p>
+    <p>© <span id="year"></span> <span class="footer-brand">صالونك</span> — <span data-i18n="rights">جميع الحقوق محفوظة</span></p>
   </footer>
 
   <script src="/js/instagram.js"></script>

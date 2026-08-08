@@ -2,6 +2,8 @@
    الشرقاوي صالون — Gallery Page Logic
    ============================================================ */
 
+const tr = (k) => (window.t ? window.t(k) : k);
+
 /* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
@@ -28,8 +30,8 @@ async function loadGallery() {
       content.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📸</div>
-          <h3>سيتم إضافة الأعمال قريباً</h3>
-          <p>تابعنا على وسائل التواصل لمشاهدة آخر أعمالنا</p>
+          <h3>${tr('gal_empty')}</h3>
+          <p>${tr('gal_empty_sub')}</p>
         </div>`;
       return;
     }
@@ -172,8 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const file = document.getElementById('sub-file').files[0];
-    if (!file) { showToast('اختر صورة أولاً', 'error'); return; }
-    if (!file.type.startsWith('image/')) { showToast('الصور فقط مسموح بها', 'error'); return; }
+    if (!file) { showToast(tr('pick_photo'), 'error'); return; }
+    if (!file.type.startsWith('image/')) { showToast(tr('images_only'), 'error'); return; }
 
     const fd = new FormData();
     fd.append('media', file);
@@ -181,21 +183,21 @@ document.addEventListener('DOMContentLoaded', () => {
     fd.append('description', document.getElementById('sub-desc').value.trim());
 
     const btn = document.getElementById('sub-btn');
-    btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+    btn.disabled = true; btn.textContent = tr('submitting');
     try {
       const res = await fetch('/api/gallery/submit', { method: 'POST', body: fd });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('شكراً! سيتم مراجعة صورتك قبل نشرها', 'success');
+        showToast(tr('submit_thanks'), 'success');
         closeSubmit();
         form.reset();
       } else {
-        showToast(data.error || 'تعذر الإرسال', 'error');
+        showToast(data.error || tr('submit_failed'), 'error');
       }
     } catch (_) {
-      showToast('حدث خطأ في الاتصال', 'error');
+      showToast(tr('submit_failed'), 'error');
     } finally {
-      btn.disabled = false; btn.textContent = 'إرسال للمراجعة';
+      btn.disabled = false; btn.textContent = tr('send_review');
     }
   });
 });

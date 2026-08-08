@@ -19,6 +19,15 @@ document.addEventListener('branding:ready', (e) => setupContact(e.detail));
 const cur = () => (window.getCurrency ? window.getCurrency() : 'ج.م');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const L = () => (window.I18N && window.I18N.lang) || 'ar';
+const tr = (k) => (window.t ? window.t(k) : k);
+const svcName = (s) => (L() === 'en' && s && s.name_en) ? s.name_en : (s ? s.name : '');
+
+// Re-render language-dependent dynamic content when the toggle flips.
+document.addEventListener('lang:changed', () => {
+  loadServicesPreview();
+  loadReviews();
+});
 
 /* ---------- Services preview ---------- */
 async function loadServicesPreview() {
@@ -32,9 +41,9 @@ async function loadServicesPreview() {
     }
     grid.innerHTML = services.slice(0, 6).map(s => `
       <a class="service-select-card" href="/book?service=${s.id}">
-        <h3>${esc(s.name)}</h3>
+        <h3>${esc(svcName(s))}</h3>
         <div class="price">${esc(s.price)} <span class="currency">${esc(cur())}</span></div>
-        <div class="duration">⏱ ${esc(s.duration)} دقيقة</div>
+        <div class="duration">⏱ ${esc(s.duration)} ${esc(tr('minutes'))}</div>
       </a>`).join('');
   } catch (_) {
     grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><h3>تعذر تحميل الخدمات</h3></div>';
@@ -93,7 +102,7 @@ function renderReviews(reviews) {
   const list = document.getElementById('reviews-list');
   const visible = reviews.slice(0, 6);
   if (!visible.length) {
-    list.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⭐</div><h3>كن أول من يترك تقييماً!</h3></div>';
+    list.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⭐</div><h3>${tr('rev_be_first')}</h3></div>`;
     return;
   }
   list.innerHTML = visible.map(r => {
@@ -117,7 +126,7 @@ async function handleReviewSubmit(e) {
   const review_text = document.getElementById('rev-text').value.trim();
   const barberSel = document.getElementById('rev-barber');
   const barber_id = barberSel && barberSel.value ? Number(barberSel.value) : null;
-  if (!name) { showToast('يرجى إدخال الاسم', 'error'); return; }
+  if (!name) { showToast(tr('rev_need_name'), 'error'); return; }
 
   try {
     const res = await fetch('/api/reviews', {
@@ -126,14 +135,14 @@ async function handleReviewSubmit(e) {
       body: JSON.stringify({ name, rating, review_text, barber_id }),
     });
     if (res.ok) {
-      showToast('شكراً! تم إرسال تقييمك', 'success');
+      showToast(tr('rev_thanks'), 'success');
       document.getElementById('review-form').reset();
       loadReviews();
     } else {
-      showToast('تعذر إرسال التقييم', 'error');
+      showToast(tr('rev_failed'), 'error');
     }
   } catch (_) {
-    showToast('حدث خطأ في الاتصال', 'error');
+    showToast(tr('rev_failed'), 'error');
   }
 }
 

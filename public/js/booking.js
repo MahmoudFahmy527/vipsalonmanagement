@@ -4,6 +4,16 @@
 
 const DAY_NAMES_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const MONTH_NAMES_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const DAY_NAMES_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTH_NAMES_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Localization helpers (language comes from i18n.js; falls back to Arabic).
+const L = () => (window.I18N && window.I18N.lang) || 'ar';
+const tr = (k) => (window.t ? window.t(k) : k);
+const dayName = (d) => (L() === 'en' ? DAY_NAMES_EN[d.getDay()] : DAY_NAMES_AR[d.getDay()]);
+const monthName = (d) => (L() === 'en' ? MONTH_NAMES_EN[d.getMonth()] : MONTH_NAMES_AR[d.getMonth()]);
+// Service name in the active language (falls back to Arabic name).
+const svcName = (s) => (L() === 'en' && s && s.name_en) ? s.name_en : (s ? s.name : '');
 
 // Booking state
 const state = {
@@ -72,7 +82,7 @@ function forgetDevice() {
 }
 window.forgetDevice = forgetDevice;
 
-const STATUS_LABELS_AR = { pending: 'قيد المراجعة', accepted: 'مؤكد', rejected: 'مرفوض', reserved: 'محجوز' };
+const STATUS_KEY = { pending: 'st_pending', accepted: 'st_accepted', rejected: 'st_rejected', reserved: 'st_reserved' };
 const STATUS_CLASS = { pending: 'badge-pending', accepted: 'badge-accepted', rejected: 'badge-rejected', reserved: 'badge-accepted' };
 
 /* Greet a recognised customer, prefill their details, show their bookings. */
@@ -106,12 +116,12 @@ async function loadMyBookings(token) {
 
     const items = list.map((b) => {
       const d = new Date(b.date + 'T00:00:00');
-      const dateLabel = `${DAY_NAMES_AR[d.getDay()]} ${d.getDate()} ${MONTH_NAMES_AR[d.getMonth()]}`;
-      const status = STATUS_LABELS_AR[b.status] || b.status;
+      const dateLabel = `${dayName(d)} ${d.getDate()} ${monthName(d)}`;
+      const status = tr(STATUS_KEY[b.status] || b.status);
       const badge = STATUS_CLASS[b.status] || 'badge';
       return `<div class="mybk-row">
         <div>
-          <strong>${b.service_name || 'خدمة'}</strong>
+          <strong>${escapeHtml(b.service_name || tr('service_fallback'))}</strong>
           <div class="text-muted" style="font-size:0.85rem;">${dateLabel} — ${formatTime12(b.time_slot)}</div>
         </div>
         <span class="badge ${badge}">${status}</span>
@@ -209,20 +219,12 @@ function formatDate(date) {
 function formatTime12(slot) {
   // slot is like "12:00", "13:00", "00:00", "01:00", "02:00"
   const [h, m] = slot.split(':').map(Number);
+  const en = L() === 'en';
   let period, hour12;
-  if (h === 0) {
-    hour12 = 12;
-    period = 'ص';
-  } else if (h < 12) {
-    hour12 = h;
-    period = 'ص';
-  } else if (h === 12) {
-    hour12 = 12;
-    period = 'م';
-  } else {
-    hour12 = h - 12;
-    period = 'م';
-  }
+  if (h === 0) { hour12 = 12; period = en ? 'AM' : 'ص'; }
+  else if (h < 12) { hour12 = h; period = en ? 'AM' : 'ص'; }
+  else if (h === 12) { hour12 = 12; period = en ? 'PM' : 'م'; }
+  else { hour12 = h - 12; period = en ? 'PM' : 'م'; }
   return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
@@ -246,22 +248,22 @@ async function loadServices() {
     }
   } catch (err) {
     document.getElementById('servicesGrid').innerHTML =
-      '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>تعذر تحميل الخدمات</h3><p>يرجى المحاولة لاحقاً</p></div>';
-    showToast('تعذر تحميل الخدمات', 'error');
+      `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">⚠️</div><h3>${tr('load_services_failed')}</h3></div>`;
+    showToast(tr('load_services_failed'), 'error');
   }
 }
 
 function renderServices() {
   const grid = document.getElementById('servicesGrid');
   if (!state.services.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">💈</div><h3>لا توجد خدمات متاحة حالياً</h3></div>';
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">💈</div><h3>${tr('no_services')}</h3></div>`;
     return;
   }
   grid.innerHTML = state.services.map(s => `
     <div class="service-select-card" data-id="${s.id || s._id}" onclick="selectService(${JSON.stringify(s).replace(/"/g, '&quot;')})">
-      <h3>${s.name}</h3>
+      <h3>${escapeHtml(svcName(s))}</h3>
       <div class="price">${s.price} <span class="currency">${cur()}</span></div>
-      <div class="duration">⏱ ${s.duration} دقيقة</div>
+      <div class="duration">⏱ ${s.duration} ${tr('minutes')}</div>
     </div>
   `).join('');
 }
@@ -338,8 +340,8 @@ async function loadBarbers(branchId) {
   layoutSteps();
 }
 
-// Bare staff noun for this salon's vertical (حلاق / مصفف / معالج).
-const staffWord = () => (window.getStaffLabel ? window.getStaffLabel() : 'حلاق');
+// Bare staff noun for this salon's vertical, localized (حلاق / مصفف / barber / stylist…).
+const staffWord = () => (window.I18N ? window.I18N.staffWord() : (window.getStaffLabel ? window.getStaffLabel() : 'حلاق'));
 
 // Branding may land after the staff cards render — re-render then so the
 // vertical's wording ("أي مصفف متاح") replaces the default.
@@ -354,8 +356,8 @@ function renderBarbers() {
   const anyCard = `
     <div class="service-select-card" data-barber-id="any" onclick="selectBarber('any')">
       <div class="barber-avatar">✨</div>
-      <h3>أي ${escapeHtml(w)} متاح</h3>
-      <div class="text-muted" style="font-size:0.88rem;">نحجز لك أول ${escapeHtml(w)} متاح</div>
+      <h3>${escapeHtml(tr('any_staff').replace('{s}', w))}</h3>
+      <div class="text-muted" style="font-size:0.88rem;">${escapeHtml(tr('we_book_first').replace('{s}', w))}</div>
     </div>`;
   const cards = state.barbers.map(b => `
     <div class="service-select-card" data-barber-id="${b.id}" onclick="selectBarber(${b.id})">
@@ -369,7 +371,7 @@ function renderBarbers() {
 
 function selectBarber(id) {
   if (id === 'any') {
-    state.selectedBarber = { id: 'any', name: `أي ${staffWord()} متاح` };
+    state.selectedBarber = { id: 'any', name: tr('any_staff').replace('{s}', staffWord()) };
   } else {
     state.selectedBarber = state.barbers.find(b => b.id === id) || null;
   }
@@ -396,17 +398,13 @@ function buildDatePicker() {
     d.setDate(today.getDate() + i);
 
     const dateStr = formatDate(d);
-    const dayName = DAY_NAMES_AR[d.getDay()];
-    const dayNum = d.getDate();
-    const monthName = MONTH_NAMES_AR[d.getMonth()];
-
     const item = document.createElement('div');
     item.className = 'date-item' + (i === 0 ? ' today' : '');
     item.dataset.date = dateStr;
     item.innerHTML = `
-      <span class="day-name">${dayName}</span>
-      <span class="day-num">${dayNum}</span>
-      <span class="month-name">${monthName}</span>
+      <span class="day-name">${dayName(d)}</span>
+      <span class="day-num">${d.getDate()}</span>
+      <span class="month-name">${monthName(d)}</span>
     `;
     item.addEventListener('click', () => selectDate(dateStr, item));
     container.appendChild(item);
@@ -421,10 +419,7 @@ function selectDate(dateStr, el) {
 
   // Parse date for label
   const d = new Date(dateStr + 'T00:00:00');
-  const dayName = DAY_NAMES_AR[d.getDay()];
-  const dayNum = d.getDate();
-  const monthName = MONTH_NAMES_AR[d.getMonth()];
-  document.getElementById('selectedDateLabel').textContent = `${dayName} ${dayNum} ${monthName}`;
+  document.getElementById('selectedDateLabel').textContent = `${dayName(d)} ${d.getDate()} ${monthName(d)}`;
 
   // Load slots
   loadSlots(dateStr);
@@ -468,7 +463,7 @@ function renderSlots(slots) {
   const grid = document.getElementById('slotsGrid');
 
   if (!slots.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📅</div><h3>لا توجد مواعيد متاحة في هذا اليوم</h3><p>جرّب تاريخاً آخر أو حلاقاً آخر</p></div>';
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📅</div><h3>${tr('no_slots')}</h3><p>${tr('try_another')}</p></div>`;
     return;
   }
 
@@ -481,7 +476,7 @@ function renderSlots(slots) {
 
     // Indicate midnight-crossing times
     const hour = parseInt(time.split(':')[0]);
-    const nextDayLabel = (hour >= 0 && hour <= 2) ? ' (فجراً)' : '';
+    const nextDayLabel = (hour >= 0 && hour <= 2) ? tr('dawn') : '';
 
     return `<div class="slot-item ${statusClass}" 
                  data-time="${time}" 
@@ -506,38 +501,37 @@ function selectSlot(time, el) {
 function buildSummary() {
   const s = state.selectedService;
   const d = new Date(state.selectedDate + 'T00:00:00');
-  const dayName = DAY_NAMES_AR[d.getDay()];
-  const dayNum = d.getDate();
-  const monthName = MONTH_NAMES_AR[d.getMonth()];
+  const dateLabel = `${dayName(d)} ${d.getDate()} ${monthName(d)}`;
 
   const branchRow = (state.selectedBranch && !state.skipBranch) ? `
       <div class="flex-between">
-        <span class="text-muted">الفرع</span>
+        <span class="text-muted">${tr('sum_branch')}</span>
         <span style="font-weight:700;">${escapeHtml(state.selectedBranch.name)}</span>
       </div>` : '';
 
+  const staffLabel = window.I18N && window.I18N.lang === 'en' ? staffWord().replace(/^./, c => c.toUpperCase()) : (window.getStaffLabel ? 'ال' + window.getStaffLabel() : 'الحلاق');
   const barberRow = state.selectedBarber ? `
       <div class="flex-between">
-        <span class="text-muted" data-staff-label>الحلاق</span>
+        <span class="text-muted">${escapeHtml(staffLabel)}</span>
         <span style="font-weight:700;">${escapeHtml(state.selectedBarber.name)}</span>
       </div>` : '';
 
   document.getElementById('bookingSummary').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:0.5rem;">${branchRow}
       <div class="flex-between">
-        <span class="text-muted">الخدمة</span>
-        <span style="font-weight:700;">${s.name}</span>
+        <span class="text-muted">${tr('sum_service')}</span>
+        <span style="font-weight:700;">${escapeHtml(svcName(s))}</span>
       </div>${barberRow}
       <div class="flex-between">
-        <span class="text-muted">السعر</span>
+        <span class="text-muted">${tr('sum_price')}</span>
         <span class="text-gold" style="font-weight:900;">${s.price} ${cur()}</span>
       </div>
       <div class="flex-between">
-        <span class="text-muted">التاريخ</span>
-        <span style="font-weight:700;">${dayName} ${dayNum} ${monthName}</span>
+        <span class="text-muted">${tr('sum_date')}</span>
+        <span style="font-weight:700;">${dateLabel}</span>
       </div>
       <div class="flex-between">
-        <span class="text-muted">الموعد</span>
+        <span class="text-muted">${tr('sum_time')}</span>
         <span style="font-weight:700;">${formatTime12(state.selectedSlot)}</span>
       </div>
     </div>
@@ -552,13 +546,13 @@ async function submitBooking(e) {
   const phone = document.getElementById('customerPhone').value.trim();
 
   if (!name || !phone) {
-    showToast('يرجى ملء جميع البيانات', 'error');
+    showToast(tr('fill_all'), 'error');
     return;
   }
 
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
-  btn.textContent = 'جاري الإرسال...';
+  btn.textContent = tr('submitting');
 
   // Remember this customer on the device and tie the booking to their token.
   const device = saveDevice(name, phone);
@@ -589,54 +583,53 @@ async function submitBooking(e) {
     if (state.selectedBarber && state.selectedBarber.id === 'any' && result.barber_name) {
       state.selectedBarber = { id: 'any', name: result.barber_name };
     }
-    showToast('تم إرسال الحجز بنجاح! ✅', 'success');
+    showToast(tr('booking_sent'), 'success');
     showConfirmation(name, phone);
   } catch (err) {
-    showToast(err.message || 'حدث خطأ أثناء الحجز', 'error');
+    showToast(err.message || tr('booking_error'), 'error');
     btn.disabled = false;
-    btn.textContent = 'تأكيد الحجز';
+    btn.textContent = tr('confirm_booking');
   }
 }
 
 function showConfirmation(name, phone) {
   const s = state.selectedService;
   const d = new Date(state.selectedDate + 'T00:00:00');
-  const dayName = DAY_NAMES_AR[d.getDay()];
-  const dayNum = d.getDate();
-  const monthName = MONTH_NAMES_AR[d.getMonth()];
+  const dateLabel = `${dayName(d)} ${d.getDate()} ${monthName(d)}`;
+  const staffLabel = window.I18N && window.I18N.lang === 'en' ? staffWord().replace(/^./, c => c.toUpperCase()) : (window.getStaffLabel ? 'ال' + window.getStaffLabel() : 'الحلاق');
 
   document.getElementById('confirmDetails').innerHTML = `
     <div class="detail-row">
-      <span class="detail-label">الاسم</span>
-      <span class="detail-value">${name}</span>
+      <span class="detail-label">${tr('name')}</span>
+      <span class="detail-value">${escapeHtml(name)}</span>
     </div>
     <div class="detail-row">
-      <span class="detail-label">الهاتف</span>
-      <span class="detail-value">${phone}</span>
+      <span class="detail-label">${tr('phone')}</span>
+      <span class="detail-value">${escapeHtml(phone)}</span>
     </div>
     <div class="detail-row">
-      <span class="detail-label">الخدمة</span>
-      <span class="detail-value">${s.name}</span>
+      <span class="detail-label">${tr('sum_service')}</span>
+      <span class="detail-value">${escapeHtml(svcName(s))}</span>
     </div>
     ${state.selectedBarber ? `<div class="detail-row">
-      <span class="detail-label">الحلاق</span>
+      <span class="detail-label">${escapeHtml(staffLabel)}</span>
       <span class="detail-value">${escapeHtml(state.selectedBarber.name)}</span>
     </div>` : ''}
     <div class="detail-row">
-      <span class="detail-label">السعر</span>
+      <span class="detail-label">${tr('sum_price')}</span>
       <span class="detail-value" style="color:var(--gold);">${s.price} ${cur()}</span>
     </div>
     <div class="detail-row">
-      <span class="detail-label">التاريخ</span>
-      <span class="detail-value">${dayName} ${dayNum} ${monthName}</span>
+      <span class="detail-label">${tr('sum_date')}</span>
+      <span class="detail-value">${dateLabel}</span>
     </div>
     <div class="detail-row">
-      <span class="detail-label">الموعد</span>
+      <span class="detail-label">${tr('sum_time')}</span>
       <span class="detail-value">${formatTime12(state.selectedSlot)}</span>
     </div>
   `;
 
-  buildWhatsappButton(name, phone, `${dayName} ${dayNum} ${monthName}`);
+  buildWhatsappButton(name, phone, dateLabel);
   showSuccess();
 }
 
@@ -667,7 +660,7 @@ function buildWhatsappButton(name, phone, dateLabel) {
   a.target = '_blank';
   a.rel = 'noopener';
   a.href = url;
-  a.textContent = '💬 أرسل الحجز عبر واتساب';
+  a.textContent = tr('wa_send');
   const homeBtn = container.querySelector('a.btn-gold');
   if (homeBtn) homeBtn.parentNode.insertBefore(a, homeBtn);
   else container.appendChild(a);
@@ -717,9 +710,24 @@ function showLockBanner() {
   if (state.selectedBarber) parts.push(`💈 ${escapeHtml(state.selectedBarber.name)}`);
   if (state.selectedBranch && state.lockedBranch) parts.push(`🏢 ${escapeHtml(state.selectedBranch.name)}`);
   if (!parts.length) return;
-  el.querySelector('.lock-text').innerHTML = 'حجزك مع ' + parts.join(' · ');
+  el.querySelector('.lock-text').innerHTML = tr('booking_with') + ' ' + parts.join(' · ');
   el.hidden = false;
 }
+
+/* ---------- Re-render dynamic content when the language toggles ---------- */
+document.addEventListener('lang:changed', () => {
+  if (state.services.length) renderServices();
+  if (state.branches.length > 1) renderBranches();
+  if (!state.skipBarber && state.barbers.length) renderBarbers();
+  if (state.selectedDate) {
+    const d = new Date(state.selectedDate + 'T00:00:00');
+    const lbl = document.getElementById('selectedDateLabel');
+    if (lbl) lbl.textContent = `${dayName(d)} ${d.getDate()} ${monthName(d)}`;
+  }
+  if (state.selectedService && state.selectedSlot) buildSummary();
+  const dev = getDevice();
+  if (dev && dev.token) loadMyBookings(dev.token);
+});
 
 /* ---------- Initialize ---------- */
 document.addEventListener('DOMContentLoaded', async () => {

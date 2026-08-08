@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
   <link href="/css/style.css" rel="stylesheet">
   <script src="/js/brand.js"></script>
+  <script src="/js/i18n.js"></script>
 </head>
 <body>
 
@@ -23,10 +24,11 @@
         الشرقاوي صالون
       </a>
       <div class="navbar-links" id="navLinks">
-        <a href="/">الرئيسية</a>
-        <a href="/services">خدماتنا</a>
-        <a href="/gallery" class="active">معرض الأعمال</a>
-        <a href="/book">احجز الآن</a>
+        <a href="/" data-i18n="nav_home">الرئيسية</a>
+        <a href="/services" data-i18n="nav_services">خدماتنا</a>
+        <a href="/gallery" class="active" data-i18n="nav_gallery">معرض الأعمال</a>
+        <a href="/book" data-i18n="nav_book">احجز الآن</a>
+        <a href="#" data-lang-toggle class="lang-toggle">EN</a>
       </div>
       <div class="navbar-toggle" onclick="toggleNav()">
         <span></span><span></span><span></span>
@@ -37,15 +39,15 @@
   <!-- Page Content -->
   <div class="page-container" style="max-width:1000px;">
 
-    <a href="/" class="back-link">→ العودة للرئيسية</a>
+    <a href="/" class="back-link" data-i18n="back_home">→ العودة للرئيسية</a>
 
     <div class="page-header">
-      <h1>معرض <span class="text-gold">الأعمال</span></h1>
-      <p>شاهد أحدث أعمالنا وتصميماتنا</p>
+      <h1><span data-i18n="gal_title_1">معرض</span> <span class="text-gold" data-i18n="gal_title_2">الأعمال</span></h1>
+      <p data-i18n="gal_sub">شاهد أحدث أعمالنا وتصميماتنا</p>
     </div>
 
     <div class="gallery-submit-bar">
-      <button class="btn btn-outline" onclick="openSubmit()">📷 شارك صورتك</button>
+      <button class="btn btn-outline" onclick="openSubmit()" data-i18n="share_photo">📷 شارك صورتك</button>
     </div>
 
     <div id="galleryContent">
@@ -60,25 +62,25 @@
   <div class="modal-overlay hidden" id="submitModal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>شارك صورتك</h3>
+        <h3 data-i18n="share_title">شارك صورتك</h3>
         <button class="btn btn-icon" onclick="closeSubmit()">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="text-muted" style="margin-top:0;font-size:0.9rem;">ستتم مراجعة الصورة قبل نشرها في المعرض.</p>
+        <p class="text-muted" style="margin-top:0;font-size:0.9rem;" data-i18n="share_note">ستتم مراجعة الصورة قبل نشرها في المعرض.</p>
         <form id="submitForm">
           <div class="form-group">
-            <label class="form-label">اسمك (اختياري)</label>
-            <input class="form-input" id="sub-name" maxlength="60" placeholder="اسمك">
+            <label class="form-label" data-i18n="your_name">اسمك (اختياري)</label>
+            <input class="form-input" id="sub-name" maxlength="60" placeholder="اسمك" data-i18n-ph="your_name_ph">
           </div>
           <div class="form-group">
-            <label class="form-label">تعليق (اختياري)</label>
-            <input class="form-input" id="sub-desc" maxlength="200" placeholder="مثال: قصة شعر جديدة">
+            <label class="form-label" data-i18n="comment">تعليق (اختياري)</label>
+            <input class="form-input" id="sub-desc" maxlength="200" placeholder="مثال: قصة شعر جديدة" data-i18n-ph="comment_ph">
           </div>
           <div class="form-group">
-            <label class="form-label">الصورة</label>
+            <label class="form-label" data-i18n="photo">الصورة</label>
             <input class="form-input" id="sub-file" type="file" accept="image/*" required>
           </div>
-          <button type="submit" class="btn btn-gold w-full" id="sub-btn">إرسال للمراجعة</button>
+          <button type="submit" class="btn btn-gold w-full" id="sub-btn" data-i18n="send_review">إرسال للمراجعة</button>
         </form>
       </div>
     </div>
@@ -93,7 +95,7 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <p>© 2026 <span class="footer-brand">الشرقاوي صالون</span> — جميع الحقوق محفوظة</p>
+    <p>© 2026 <span class="footer-brand">الشرقاوي صالون</span> — <span data-i18n="rights">جميع الحقوق محفوظة</span></p>
   </footer>
 
   <script src="/js/gallery.js"></script>

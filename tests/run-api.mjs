@@ -90,6 +90,12 @@ async function runSuite(run) {
   ok('anon booking with locked barber+branch → 201', bk.status === 201, `got ${bk.status}`);
   ok('booking echoes the branch', bk.json && bk.json.booking && bk.json.booking.branch_id === branchId);
 
+  // ── i18n: services must expose an English name for the storefront toggle ──
+  const svcEn = (await api('/api/admin/services', { method: 'POST', cookie: admin, body: { name: 'خدمة٢_' + tag, name_en: 'Test Service ' + run, price: 80, duration: 30 } })).json;
+  ok('service created with English name', svcEn && svcEn.success);
+  const pubSvc = (await api('/api/services')).json.find((s) => s.id === svcEn.service.id);
+  ok('public services expose name_en (English storefront)', pubSvc && pubSvc.name_en === 'Test Service ' + run, JSON.stringify(pubSvc && pubSvc.name_en));
+
   // ── CSV export (admin) ──
   const csv = await api('/api/admin/bookings.csv', { cookie: admin });
   ok('CSV export 200', csv.status === 200);
