@@ -52,12 +52,15 @@
     <div class="container">
       <div class="flex-between" style="flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
         <h2 style="margin:0;">المالية والأرباح</h2>
-        <select class="form-select" id="period" style="width:auto;min-width:150px;">
-          <option value="month">هذا الشهر</option>
-          <option value="last">الشهر الماضي</option>
-          <option value="year">هذه السنة</option>
-          <option value="all">كل الفترات</option>
-        </select>
+        <div class="flex gap-2" style="align-items:center;flex-wrap:wrap;">
+          <select class="form-select" id="period" style="width:auto;min-width:150px;">
+            <option value="month">هذا الشهر</option>
+            <option value="last">الشهر الماضي</option>
+            <option value="year">هذه السنة</option>
+            <option value="all">كل الفترات</option>
+          </select>
+          <button class="btn btn-outline" id="export-csv" title="تصدير التقرير المالي">⬇️ CSV</button>
+        </div>
       </div>
 
       <div id="fin-content">

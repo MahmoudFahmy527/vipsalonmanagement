@@ -208,6 +208,32 @@ async function runSuite(run) {
   const badMagic = await fetch(BASE + '/staff?t=not_a_real_token', { redirect: 'manual' });
   const badCookie = (badMagic.headers.get('set-cookie') || '').split(';')[0];
   ok('invalid magic token → no staff access', (await api('/api/staff/me', { cookie: badCookie })).status === 401);
+  // Staff self-edit profile: specialty + schedule only; comp/name stay locked.
+  const prof = await api('/api/staff/profile', { method: 'PUT', cookie: staffCookie, body: {
+    specialty: 'قص وتحديد ذقن ' + tag, work_days: '1,2,3', work_start: 13, work_end: 22,
+    // hostile fields that must be ignored:
+    name: 'HACKED', commission_pct: 999, salary_amount: 999999, is_active: 0,
+  }});
+  ok('staff profile update 200', prof.status === 200);
+  const me2 = (await api('/api/staff/me', { cookie: staffCookie })).json;
+  ok('staff specialty saved', me2.barber.specialty === 'قص وتحديد ذقن ' + tag);
+  ok('staff schedule saved', me2.barber.work_days === '1,2,3' && me2.barber.work_start === 13 && me2.barber.work_end === 22);
+  // Admin view proves name + comp were NOT touched by the staff edit.
+  const adminBarber = (await api('/api/admin/barbers', { cookie: admin })).json.find((b) => b.id === barberId);
+  ok('staff edit cannot change name', adminBarber && adminBarber.name !== 'HACKED');
+  ok('staff edit cannot change commission', adminBarber && adminBarber.commission_pct === 40);
+  ok('staff edit cannot change salary', adminBarber && adminBarber.salary_amount === 3000);
+  ok('staff edit cannot deactivate self', adminBarber && adminBarber.is_active === 1);
+  ok('anon blocked from staff profile update', (await api('/api/staff/profile', { method: 'PUT', body: { specialty: 'x' } })).status === 401);
+
+  // Finance CSV export (admin).
+  const fcsv = await api('/api/admin/finance.csv' + `?from=${decFrom}&to=${decTo}`, { cookie: admin });
+  ok('finance CSV 200 + text/csv', fcsv.status === 200 && /text\/csv/.test(fcsv.headers.get('content-type') || ''));
+  const fcsvBytes = new Uint8Array(await (await fetch(BASE + `/api/admin/finance.csv?from=${decFrom}&to=${decTo}`, { headers: { Cookie: admin } })).arrayBuffer());
+  ok('finance CSV has UTF-8 BOM', fcsvBytes[0] === 0xEF && fcsvBytes[1] === 0xBB && fcsvBytes[2] === 0xBF);
+  ok('finance CSV includes P&L + per-staff rows', fcsv.text.includes('صافي الربح') && fcsv.text.includes('الموظف'));
+  ok('anon blocked from finance CSV', (await api('/api/admin/finance.csv')).status === 401);
+
   // Logout ends the staff session.
   await api('/api/staff/logout', { method: 'POST', cookie: staffCookie });
   ok('staff logout revokes access', (await api('/api/staff/me', { cookie: staffCookie })).status === 401);

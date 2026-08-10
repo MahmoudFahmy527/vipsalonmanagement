@@ -569,6 +569,15 @@ function updateBarber(id, b) {
          ...compFields(b), id);
 }
 
+// Staff self-service: update ONLY the fields a staff member may change about
+// themselves (specialty + schedule). Name, branch, comp, and active status stay
+// admin-controlled and are never touched here.
+function updateBarberProfile(id, p) {
+  return db
+    .prepare(`UPDATE barbers SET specialty = ?, work_days = ?, work_start = ?, work_end = ? WHERE id = ?`)
+    .run(p.specialty || '', p.work_days || '', normHour(p.work_start), normHour(p.work_end), Number(id));
+}
+
 function toggleBarber(id) {
   return db
     .prepare('UPDATE barbers SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?')
@@ -942,6 +951,7 @@ module.exports = {
   barberWorksOn,
   createBarber,
   updateBarber,
+  updateBarberProfile,
   toggleBarber,
   deleteBarber,
   // Finance

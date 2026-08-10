@@ -125,7 +125,7 @@ function renderServiceCard(service, category) {
       ${service.description ? `<p>${service.description}</p>` : ''}
       <div class="service-meta">
         <div class="service-price">
-          ${service.price} <span class="currency">${window.getCurrency ? window.getCurrency() : 'ج.م'}</span>
+          ${service.price} <span class="currency">${window.getCurrencyLocalized ? window.getCurrencyLocalized() : (window.getCurrency ? window.getCurrency() : 'ج.م')}</span>
         </div>
         <div class="service-duration">⏱ ${service.duration} ${tr('minutes')}</div>
       </div>

@@ -30,7 +30,10 @@
     })
     .catch(() => $('denied').classList.remove('hidden'));
 
+  let ME = null;
+
   function startPortal(me) {
+    ME = me;
     $('portal').classList.remove('hidden');
     $('logout-btn').classList.remove('hidden');
     $('staff-name').textContent = me.barber.name;
@@ -50,17 +53,59 @@
     document.querySelectorAll('.staff-tab').forEach(btn => btn.addEventListener('click', () => {
       document.querySelectorAll('.staff-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      ['bookings', 'income', 'reviews', 'gallery'].forEach(t =>
+      ['bookings', 'income', 'reviews', 'gallery', 'profile'].forEach(t =>
         $('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab));
       if (btn.dataset.tab === 'income') loadIncome();
       if (btn.dataset.tab === 'reviews') loadReviews();
       if (btn.dataset.tab === 'gallery') loadGallery();
+      if (btn.dataset.tab === 'profile') fillProfile();
     }));
 
     $('inc-period').addEventListener('change', loadIncome);
     $('g-upload').addEventListener('click', uploadGallery);
+    buildProfileWeekdays();
+    $('pf-save').addEventListener('click', saveProfile);
 
     loadBookings();
+  }
+
+  // ── Profile (self-edit: specialty + schedule) ──
+  const DAY_NAMES = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  function buildProfileWeekdays() {
+    const el = $('pf-workdays');
+    el.innerHTML = DAY_NAMES.map((d, i) => `<button type="button" class="workday-chip" data-day="${i}">${d}</button>`).join('');
+    el.querySelectorAll('.workday-chip').forEach(chip => chip.addEventListener('click', () => chip.classList.toggle('active')));
+  }
+  function fillProfile() {
+    const b = ME.barber;
+    $('pf-specialty').value = b.specialty || '';
+    $('pf-start').value = (b.work_start != null) ? b.work_start : '';
+    $('pf-end').value = (b.work_end != null) ? b.work_end : '';
+    const days = String(b.work_days || '').split(',').map(s => s.trim()).filter(Boolean);
+    const all = days.length === 0;
+    $('pf-workdays').querySelectorAll('.workday-chip').forEach(chip =>
+      chip.classList.toggle('active', all || days.includes(chip.dataset.day)));
+  }
+  async function saveProfile() {
+    const active = [...$('pf-workdays').querySelectorAll('.workday-chip.active')].map(c => c.dataset.day);
+    const work_days = active.length === 7 ? '' : active.join(',');
+    const startV = $('pf-start').value, endV = $('pf-end').value;
+    const body = {
+      specialty: $('pf-specialty').value.trim(),
+      work_days,
+      work_start: startV === '' ? null : Number(startV),
+      work_end: endV === '' ? null : Number(endV),
+    };
+    $('pf-save').disabled = true;
+    try {
+      const res = await fetch('/api/staff/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error();
+      // Reflect saved values locally so re-opening the tab shows them.
+      Object.assign(ME.barber, body);
+      $('specialty').textContent = body.specialty;
+      showToast('تم حفظ ملفك');
+    } catch (_) { showToast('تعذر الحفظ', 'error'); }
+    finally { $('pf-save').disabled = false; }
   }
 
   // ── Bookings ──

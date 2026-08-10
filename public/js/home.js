@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Contact block is populated once branding is available.
 document.addEventListener('branding:ready', (e) => setupContact(e.detail));
 
-const cur = () => (window.getCurrency ? window.getCurrency() : 'ج.م');
+const cur = () => (window.getCurrencyLocalized ? window.getCurrencyLocalized() : (window.getCurrency ? window.getCurrency() : 'ج.م'));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const L = () => (window.I18N && window.I18N.lang) || 'ar';

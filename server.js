@@ -1353,6 +1353,46 @@ app.delete('/api/admin/expenses/:id', isAdmin, (req, res) => {
   catch (err) { console.error('DEL expense:', err); res.status(500).json({ error: 'fail' }); }
 });
 
+// Finance report as CSV (P&L summary + per-staff profitability) for accountants.
+app.get('/api/admin/finance.csv', isAdmin, (req, res) => {
+  try {
+    const { from, to, branch } = req.query;
+    const f = finance.computeSummary(db, { from, to, branchId: branch });
+    const cell = (v) => {
+      const str = v == null ? '' : String(v);
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const row = (cells) => cells.map(cell).join(',');
+    const cur = db.getSetting('currency') || 'ج.م';
+    const period = `${f.range.from || 'البداية'} → ${f.range.to || 'النهاية'}`;
+    const lines = [];
+    lines.push(row(['التقرير المالي', period]));
+    lines.push(row(['العملة', cur]));
+    lines.push('');
+    lines.push(row(['البند', 'القيمة']));
+    lines.push(row(['إيراد الحجوزات', f.revenue.bookings]));
+    lines.push(row(['دخل يدوي', f.revenue.manual]));
+    lines.push(row(['إجمالي الإيرادات', f.revenue.total]));
+    lines.push(row(['رواتب وعمولات', f.expenses.labor]));
+    lines.push(row(['مصروفات أخرى', f.expenses.other]));
+    lines.push(row(['إجمالي المصروفات', f.expenses.total]));
+    lines.push(row(['صافي الربح', f.netProfit]));
+    lines.push(row(['هامش الربح %', f.margin]));
+    lines.push('');
+    lines.push(row(['الموظف', 'الجلسات', 'الإيراد', 'العمولة', 'الراتب', 'التكلفة', 'الربح للصالون']));
+    for (const b of f.byBarber) {
+      lines.push(row([b.name, b.count, b.revenue, b.commission, b.salary, b.cost, b.profit]));
+    }
+    const csv = '﻿' + lines.join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="finance-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('GET /api/admin/finance.csv error:', err);
+    res.status(500).json({ error: 'Failed to export finance' });
+  }
+});
+
 // ──────────────────────────────────────────────
 // STAFF PORTAL (magic-link auth; scoped to the staff member's own data)
 // ──────────────────────────────────────────────
@@ -1387,10 +1427,27 @@ app.get('/api/staff/me', isStaff, (req, res) => {
     const b = db.getBarber(req.session.staffBarberId);
     if (!b || !b.is_active) { req.session.staffBarberId = null; return res.status(401).json({ error: 'inactive' }); }
     res.json({
-      barber: { id: b.id, name: b.name, specialty: b.specialty || '', branch_id: b.branch_id || null },
+      barber: {
+        id: b.id, name: b.name, specialty: b.specialty || '', branch_id: b.branch_id || null,
+        work_days: b.work_days || '', work_start: b.work_start, work_end: b.work_end,
+      },
       rating: db.barberRatingSummary(b.id),
     });
   } catch (err) { console.error('staff/me:', err); res.status(500).json({ error: 'fail' }); }
+});
+
+// Staff self-edit: specialty + working hours/days only (never name/branch/comp).
+app.put('/api/staff/profile', isStaff, (req, res) => {
+  try {
+    const b = req.body || {};
+    db.updateBarberProfile(req.session.staffBarberId, {
+      specialty: typeof b.specialty === 'string' ? b.specialty.slice(0, 120) : '',
+      work_days: typeof b.work_days === 'string' ? b.work_days : '',
+      work_start: b.work_start === '' || b.work_start == null ? null : Number(b.work_start),
+      work_end: b.work_end === '' || b.work_end == null ? null : Number(b.work_end),
+    });
+    res.json({ success: true });
+  } catch (err) { console.error('staff/profile:', err); res.status(500).json({ error: 'fail' }); }
 });
 
 app.get('/api/staff/bookings', isStaff, (req, res) => {

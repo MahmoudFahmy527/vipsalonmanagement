@@ -71,6 +71,7 @@
           <button class="staff-tab" data-tab="income">💰 دخلي</button>
           <button class="staff-tab" data-tab="reviews">⭐ تقييماتي</button>
           <button class="staff-tab" data-tab="gallery">🖼️ معرضي</button>
+          <button class="staff-tab" data-tab="profile">⚙️ ملفي</button>
         </div>
 
         <!-- Bookings -->
@@ -97,6 +98,33 @@
         <!-- Reviews -->
         <section id="tab-reviews" class="hidden">
           <div id="reviews-content"><div class="flex-center mt-3"><div class="spinner"></div></div></div>
+        </section>
+
+        <!-- Profile -->
+        <section id="tab-profile" class="hidden">
+          <div class="card" style="max-width:560px;">
+            <h3 style="margin-top:0;">⚙️ ملفي الشخصي</h3>
+            <p class="text-muted" style="margin-top:0;font-size:0.88rem;">عدّل تخصصك وساعات عملك. اسمك وفرعك وأجرك يديرها المدير.</p>
+            <div class="form-group">
+              <label class="form-label">التخصص</label>
+              <input class="form-input" id="pf-specialty" maxlength="120" placeholder="مثال: قص وتحديد ذقن">
+            </div>
+            <div class="form-group">
+              <label class="form-label">أيام العمل</label>
+              <div class="workdays" id="pf-workdays"></div>
+              <div class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">اختر الأيام التي تعمل بها.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">ساعات العمل (اختياري)</label>
+              <div class="flex gap-2" style="align-items:center;">
+                <input class="form-input" id="pf-start" type="number" min="0" max="23" placeholder="من" style="width:100%;">
+                <span class="text-muted">—</span>
+                <input class="form-input" id="pf-end" type="number" min="0" max="23" placeholder="إلى" style="width:100%;">
+              </div>
+              <div class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">اتركها فارغة لاستخدام مواعيد الصالون. مثال: 12 إلى 22.</div>
+            </div>
+            <button class="btn btn-gold" id="pf-save">حفظ التعديلات</button>
+          </div>
         </section>
 
         <!-- Gallery -->

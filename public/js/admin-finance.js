@@ -28,6 +28,9 @@
     fetch('/api/logout', { method: 'POST' }).then(() => location.href = '/login');
   });
   document.getElementById('period').addEventListener('change', load);
+  document.getElementById('export-csv').addEventListener('click', () => {
+    window.location.href = '/api/admin/finance.csv' + qs();
+  });
 
   let barbers = [];
 

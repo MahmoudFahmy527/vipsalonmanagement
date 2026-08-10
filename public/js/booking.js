@@ -51,8 +51,8 @@ function layoutSteps() {
   if (back) back.hidden = state.skipBranch;
 }
 
-// Currency comes from salon settings (brand.js); fallback to EGP.
-const cur = () => (window.getCurrency ? window.getCurrency() : 'ج.م');
+// Currency comes from salon settings (brand.js); shown as an ISO code in English.
+const cur = () => (window.getCurrencyLocalized ? window.getCurrencyLocalized() : (window.getCurrency ? window.getCurrency() : 'ج.م'));
 
 /* ---------- Device memory (returning-customer recognition) ----------
    We keep a small record in the browser: the customer's name, phone and a

@@ -169,13 +169,28 @@
   }
   function toggle() { set(lang === 'en' ? 'ar' : 'en'); }
 
+  // Arabic currency symbols → ISO codes for the English view.
+  const CURRENCY_EN = {
+    'ج.م': 'EGP', 'ر.س': 'SAR', 'د.إ': 'AED', 'ر.ق': 'QAR', 'د.ك': 'KWD',
+    'ر.ع': 'OMR', 'د.ب': 'BHD', 'د.أ': 'JOD', 'د.ا': 'JOD', 'ل.ل': 'LBP',
+    'د.ل': 'LYD', 'د.ت': 'TND', 'د.ج': 'DZD', 'درهم': 'MAD', 'ل.س': 'SYP',
+    'ر.ي': 'YER', 'ج.س': 'SDG',
+  };
+  function currencyLocalized() {
+    const c = (window.SALON && window.SALON.currency) || 'ج.م';
+    if (lang !== 'en') return c;
+    return CURRENCY_EN[c.trim()] || c; // fall back to the raw symbol if unmapped ($/€ etc.)
+  }
+
   window.I18N = {
     t,
     get lang() { return lang; },
     set, toggle, apply,
     staffWord: () => (lang === 'en' ? staffEn().s : (window.getStaffLabel ? window.getStaffLabel() : 'حلاق')),
+    currency: currencyLocalized,
   };
   window.t = t;
+  window.getCurrencyLocalized = currencyLocalized;
 
   // Toggle buttons (event delegation so dynamically added ones work too).
   document.addEventListener('click', (e) => {
